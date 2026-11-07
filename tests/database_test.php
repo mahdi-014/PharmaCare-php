@@ -33,18 +33,22 @@ try {
     $currentDb = (string)$db->query('SELECT DATABASE()')->fetchColumn();
     assert_test($currentDb === 'pharmacare', "Connected to target database: '$currentDb'");
 
-    // Check all 6 required tables
+    // Check all 11 required tables (6 baseline + 4 online ordering + 1 migration tracking)
     $tables = $db->query("SHOW TABLES")->fetchAll(PDO::FETCH_COLUMN);
-    $requiredTables = ['app_users', 'categories', 'suppliers', 'medicines', 'sales', 'sale_items'];
+    $requiredTables = [
+        'app_users', 'categories', 'suppliers', 'medicines', 'sales', 'sale_items',
+        'orders', 'order_items', 'order_status_history', 'prescriptions', 'schema_migrations'
+    ];
     foreach ($requiredTables as $tbl) {
         assert_test(in_array($tbl, $tables, true), "Relational table '$tbl' exists");
     }
 
-    // Verify seeded users
+    // Verify seeded users (admin, staff, customer)
     $users = fetch_all("SELECT id, username, role, enabled FROM app_users ORDER BY id");
-    assert_test(count($users) >= 2, "Pre-seeded users verified (count: " . count($users) . ")");
+    assert_test(count($users) >= 3, "Pre-seeded users verified (count: " . count($users) . ")");
     assert_test($users[0]['username'] === 'admin' && $users[0]['role'] === 'ADMIN', "Administrator account verified");
     assert_test($users[1]['username'] === 'staff' && $users[1]['role'] === 'STAFF', "Staff account verified");
+    assert_test($users[2]['username'] === 'customer' && $users[2]['role'] === 'CUSTOMER', "Demo customer account verified");
 
     // Verify categories and suppliers
     $catCount = (int)scalar("SELECT COUNT(*) FROM categories");

@@ -32,3 +32,20 @@ config.local.php
 .env
 .env.local
 
+# Backups and database archives
+backups/
+*.zip
+*.tar.gz
+*.bak
+*_dump.sql
+
+# Temporary scripts & scratch files
+scratch/
+hash.php
+verify_baseline.php
+
+# Uploaded customer prescriptions (protect patient data, preserve structure)
+storage/prescriptions/*
+!storage/prescriptions/.gitkeep
+!storage/prescriptions/.htaccess
+
