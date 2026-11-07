@@ -1,6 +1,3 @@
-# Prevent direct HTTP web access to patient prescriptions
+# Deny direct browser access to customer prescription files
 Require all denied
-<Files "*">
-    Require all denied
-</Files>
 Options -Indexes
