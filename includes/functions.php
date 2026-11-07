@@ -20,6 +20,10 @@ function csrf_verify(): void {
 }
 function user(): ?array { return $_SESSION['user'] ?? null; }
 function is_admin(): bool { return (user()['role'] ?? '') === 'ADMIN'; }
+function is_staff(): bool { return (user()['role'] ?? '') === 'STAFF'; }
+function is_customer(): bool { return (user()['role'] ?? '') === 'CUSTOMER'; }
+function is_staff_or_admin(): bool { return in_array(user()['role'] ?? '', ['STAFF', 'ADMIN'], true); }
+
 function require_login(): void {
     static $verified = false;
     if (!user()) redirect('login');
@@ -37,6 +41,8 @@ function require_login(): void {
     $verified = true;
 }
 function require_admin(): void { require_login(); if (!is_admin()) { http_response_code(403); include __DIR__ . '/../pages/forbidden.php'; exit; } }
+function require_staff_or_admin(): void { require_login(); if (!is_staff_or_admin()) { http_response_code(403); include __DIR__ . '/../pages/forbidden.php'; exit; } }
+function require_customer(): void { require_login(); if (!is_customer()) { http_response_code(403); include __DIR__ . '/../pages/forbidden.php'; exit; } }
 function flash(string $type, string $text): void { $_SESSION['_flash'][] = ['type' => $type, 'text' => $text]; }
 function show_flashes(): void {
     foreach ($_SESSION['_flash'] ?? [] as $f) {
@@ -91,5 +97,6 @@ function price_value(mixed $value, string $label, bool $zero = false): string {
 function page_title(string $page): string { return [
     'dashboard' => 'Dashboard', 'medicines' => 'Medicine Inventory', 'medicine_form' => 'Medicine Details',
     'sales' => 'Sales History', 'sale_form' => 'Create New Sale', 'invoice' => 'Sales Invoice',
-    'categories' => 'Medicine Categories', 'suppliers' => 'Suppliers', 'users' => 'User Management'
+    'categories' => 'Medicine Categories', 'suppliers' => 'Suppliers', 'users' => 'User Management',
+    'register' => 'Customer Registration', 'catalog' => 'Medicine Catalog', 'profile' => 'My Account Profile'
 ][$page] ?? 'PharmaCare'; }

@@ -11,18 +11,33 @@ $subtitles = [
  'categories' => 'Organize medicines into searchable groups',
  'suppliers' => 'Manage supplier and contact information',
  'users' => 'Create staff accounts and control access',
+ 'catalog' => 'Browse, search, and order available medicines online',
+ 'profile' => 'Manage your customer profile and delivery address',
+ 'register' => 'Create a customer account to order medicines online'
 ];
-$links = [
- ['dashboard','grid-1x2-fill','Dashboard','dashboard'],
- ['medicines','capsule','Medicines','medicines'],
- ['sale_form','cart-plus-fill','New Sale','sale_form'],
- ['sales','receipt','Sales History','sales'],
-];
-if (is_admin()) {
- $links[] = ['section', '', 'Administration', ''];
- $links[] = ['categories', 'tags-fill','Categories','categories'];
- $links[] = ['suppliers','truck','Suppliers','suppliers'];
- $links[] = ['users','people-fill','Users','users'];
+
+if (is_customer()) {
+    $links = [
+        ['catalog', 'capsule-pill', 'Browse Medicines', 'catalog'],
+        ['profile', 'person-circle', 'My Profile', 'profile'],
+    ];
+    $brandUrl = url('catalog');
+    $brandSubtitle = 'Online Storefront';
+} else {
+    $links = [
+        ['dashboard','grid-1x2-fill','Dashboard','dashboard'],
+        ['medicines','capsule','Medicines','medicines'],
+        ['sale_form','cart-plus-fill','New Sale','sale_form'],
+        ['sales','receipt','Sales History','sales'],
+    ];
+    if (is_admin()) {
+        $links[] = ['section', '', 'Administration', ''];
+        $links[] = ['categories', 'tags-fill','Categories','categories'];
+        $links[] = ['suppliers','truck','Suppliers','suppliers'];
+        $links[] = ['users','people-fill','Users','users'];
+    }
+    $brandUrl = url('dashboard');
+    $brandSubtitle = 'Management System';
 }
 ?>
 <!doctype html><html lang="en"><head>
@@ -35,7 +50,7 @@ if (is_admin()) {
 <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet">
 <link rel="stylesheet" href="assets/css/app.css"></head><body>
 <aside class="app-sidebar">
- <a class="brand" href="<?=e(url('dashboard'))?>"><span class="brand-mark"><i class="bi bi-capsule-pill"></i></span><span><strong>PharmaCare</strong><small>Management System</small></span></a>
+ <a class="brand" href="<?=e($brandUrl)?>"><span class="brand-mark"><i class="bi bi-capsule-pill"></i></span><span><strong>PharmaCare</strong><small><?=e($brandSubtitle)?></small></span></a>
  <nav class="sidebar-nav">
  <?php foreach ($links as [$dest, $icon, $label, $selected]): ?>
  <?php if ($dest === 'section'): ?><div class="nav-section"><?=e($label)?></div>

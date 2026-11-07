@@ -64,11 +64,17 @@
                     </button>
                 </form>
 
-                <div class="demo-credentials mt-4">
+                <div class="text-center mt-3 pt-2 border-top">
+                    <span class="text-secondary small">New customer?</span>
+                    <a href="index.php?page=register" class="fw-semibold text-success ms-1 small">Create an account</a>
+                </div>
+
+                <div class="demo-credentials mt-3">
                     <div class="fw-semibold mb-1"><i class="bi bi-key me-1"></i>Demo credentials</div>
                     <div><strong>Admin:</strong> admin / admin123</div>
                     <div><strong>Staff:</strong> staff / staff123</div>
-                    <small class="text-secondary">For coursework/demo only. Change passwords before hosting.</small>
+                    <div><strong>Customer:</strong> customer / customer123</div>
+                    <small class="text-secondary d-block mt-1">For coursework/demo only. Change passwords before hosting.</small>
                 </div>
             </div>
         </section>

@@ -10,12 +10,32 @@ $config = require dirname(__DIR__) . '/config.php';
 date_default_timezone_set($config['timezone'] ?? 'Asia/Dhaka');
 
 if (session_status() === PHP_SESSION_NONE) {
+    ini_set('session.use_strict_mode', '1');
     session_set_cookie_params([
         'httponly' => true,
         'secure' => !empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off',
         'samesite' => 'Lax'
     ]);
     session_start();
+}
+
+// Enforce 30-minute idle session timeout (Q7 Session Security)
+if (!empty($_SESSION['user'])) {
+    $now = time();
+    $maxIdleSeconds = 1800; // 30 minutes
+    if (isset($_SESSION['last_activity']) && ($now - (int)$_SESSION['last_activity'] > $maxIdleSeconds)) {
+        $_SESSION = [];
+        if (ini_get('session.use_cookies')) {
+            $params = session_get_cookie_params();
+            setcookie(session_name(), '', time() - 42000, $params['path'], $params['domain'], $params['secure'], $params['httponly']);
+        }
+        session_destroy();
+        session_start();
+        $_SESSION['_flash'][] = ['type' => 'error', 'text' => 'Session expired due to 30 minutes of inactivity. Please sign in again.'];
+        header('Location: index.php?page=login');
+        exit;
+    }
+    $_SESSION['last_activity'] = $now;
 }
 
 header('X-Content-Type-Options: nosniff');

@@ -5,16 +5,80 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') { http_response_code(405); exit('POST
 csrf_verify();
 $action = (string)($_POST['action'] ?? '');
 if ($action === 'login') {
-    if (user()) redirect('dashboard');
+    if (user()) redirect(is_customer() ? 'catalog' : 'dashboard');
     try {
-        $account = fetch_one('SELECT id, full_name, username, password, role, enabled FROM app_users WHERE username = ? LIMIT 1', [trim((string)($_POST['username'] ?? ''))]);
-        if (!$account || !(int)$account['enabled'] || !password_verify((string)($_POST['password'] ?? ''), $account['password'])) {
-            flash('error', 'Invalid username, password or disabled account.'); redirect('login');
+        $identifier = trim((string)($_POST['username'] ?? ''));
+        $password = (string)($_POST['password'] ?? '');
+        $account = fetch_one('SELECT id, full_name, username, email, password, role, enabled FROM app_users WHERE username = ? OR email = ? LIMIT 1', [$identifier, $identifier]);
+        if (!$account || !(int)$account['enabled'] || !password_verify($password, $account['password'])) {
+            flash('error', 'Invalid username or password.');
+            redirect('login');
         }
         session_regenerate_id(true);
-        $_SESSION['user'] = ['id' => (int)$account['id'],'full_name' => $account['full_name'], 'username' => $account['username'], 'role' => $account['role']];
-        redirect('dashboard');
-    } catch (PDOException $ex) { flash('error', 'Database unavailable. Import database/pharmacare.sql and check config.php.'); redirect('login'); }
+        $_SESSION['user_id'] = (int)$account['id'];
+        $_SESSION['user'] = [
+            'id' => (int)$account['id'],
+            'full_name' => $account['full_name'],
+            'username' => $account['username'],
+            'role' => $account['role']
+        ];
+        $_SESSION['last_activity'] = time();
+        flash('success', 'Welcome back, ' . $account['full_name'] . '!');
+        redirect($account['role'] === 'CUSTOMER' ? 'catalog' : 'dashboard');
+    } catch (PDOException $ex) {
+        flash('error', 'Database unavailable. Please check configuration.');
+        redirect('login');
+    }
+}
+if ($action === 'register') {
+    if (user()) redirect(is_customer() ? 'catalog' : 'dashboard');
+    try {
+        $fullName = required_text('full_name', 80);
+        $username = trim((string)($_POST['username'] ?? ''));
+        $email = trim((string)($_POST['email'] ?? ''));
+        $phone = trim((string)($_POST['phone'] ?? ''));
+        $address = required_text('address', 255);
+        $password = (string)($_POST['password'] ?? '');
+        $confirmPassword = (string)($_POST['confirm_password'] ?? '');
+
+        if (!preg_match('/^[A-Za-z0-9_.-]{3,50}$/', $username)) {
+            throw new DomainException('Username must contain 3–50 letters, numbers, periods, underscores or hyphens.');
+        }
+        if (!filter_var($email, FILTER_VALIDATE_EMAIL) || strlen($email) > 120) {
+            throw new DomainException('Please enter a valid email address (up to 120 characters).');
+        }
+        if (!preg_match('/^(?:\+?880|0)?1[3-9]\d{8}$/', $phone)) {
+            throw new DomainException('Please enter a valid 11-digit mobile number (e.g., 017XXXXXXXX).');
+        }
+        if (strlen($password) < 8 || strlen($password) > 72) {
+            throw new DomainException('Password must contain 8–72 characters.');
+        }
+        if ($password !== $confirmPassword) {
+            throw new DomainException('Password confirmation does not match.');
+        }
+
+        if (fetch_one('SELECT id FROM app_users WHERE LOWER(username) = LOWER(?)', [$username])) {
+            throw new DomainException('This username is already taken. Please choose another.');
+        }
+        if (fetch_one('SELECT id FROM app_users WHERE LOWER(email) = LOWER(?)', [$email])) {
+            throw new DomainException('This email is already registered. Please sign in or use another email.');
+        }
+
+        $hash = password_hash($password, PASSWORD_BCRYPT, ['cost' => 12]);
+        execute_sql(
+            'INSERT INTO app_users (full_name, username, email, phone, address, password, role, enabled) VALUES (?, ?, ?, ?, ?, ?, "CUSTOMER", 1)',
+            [$fullName, $username, $email, $phone, $address, $hash]
+        );
+
+        flash('success', 'Your account has been created successfully! Please sign in with your credentials.');
+        redirect('login');
+    } catch (DomainException $ex) {
+        flash('error', $ex->getMessage());
+        redirect('register');
+    } catch (PDOException $ex) {
+        flash('error', 'Registration could not be completed. Please try again.');
+        redirect('register');
+    }
 }
 if ($action === 'logout') {
     $_SESSION = [];
@@ -32,10 +96,24 @@ if (in_array($action, $adminActions, true)) require_admin();
 $fallback = match($action) {
     'category_save','category_delete'=>'categories','supplier_save','supplier_delete'=>'suppliers',
     'medicine_save','medicine_toggle'=>'medicines','user_create','user_toggle'=>'users',
-    'sale_create'=>'sale_form',default=>'dashboard'
+    'sale_create'=>'sale_form','profile_update'=>'profile',default=>'dashboard'
 };
 try {
     switch ($action) {
+        case 'profile_update':
+            $userId = (int)user()['id'];
+            $fullName = required_text('full_name', 80);
+            $phone = trim((string)($_POST['phone'] ?? ''));
+            $address = required_text('address', 255);
+
+            if (!preg_match('/^(?:\+?880|0)?1[3-9]\d{8}$/', $phone)) {
+                throw new DomainException('Please enter a valid 11-digit mobile number (e.g., 017XXXXXXXX).');
+            }
+
+            execute_sql('UPDATE app_users SET full_name = ?, phone = ?, address = ? WHERE id = ?', [$fullName, $phone, $address, $userId]);
+            $_SESSION['user']['full_name'] = $fullName;
+            flash('success', 'Your profile details have been updated.');
+            break;
         case 'category_save':
             $id = (int)($_POST['id'] ?? 0);
             $name = required_text('name', 80);
