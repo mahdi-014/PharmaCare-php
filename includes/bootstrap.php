@@ -43,6 +43,7 @@ header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
 require_once __DIR__ . '/functions.php';
+require_once __DIR__ . '/inventory_service.php';
 
 function db(): PDO
 {

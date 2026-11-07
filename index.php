@@ -6,7 +6,7 @@ $page = (string)($_GET['page'] ?? (user() && is_customer() ? 'catalog' : 'dashbo
 $routes = [
     'login', 'register', 'dashboard', 'medicines', 'medicine_form',
     'categories', 'suppliers', 'sales', 'sale_form', 'invoice', 'users',
-    'catalog', 'profile', 'cart', 'checkout'
+    'catalog', 'profile', 'cart', 'checkout', 'order_confirmation'
 ];
 
 if (!in_array($page, $routes, true)) {
@@ -41,7 +41,7 @@ require_login();
 // Strict RBAC Enforcement
 $adminOnlyPages = ['users', 'categories', 'suppliers', 'medicine_form'];
 $staffOrAdminPages = ['dashboard', 'medicines', 'sales', 'sale_form', 'invoice'];
-$customerOnlyPages = ['cart', 'profile', 'checkout'];
+$customerOnlyPages = ['cart', 'profile', 'checkout', 'order_confirmation'];
 
 if (in_array($page, $adminOnlyPages, true)) {
     require_admin();

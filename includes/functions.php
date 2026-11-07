@@ -99,7 +99,7 @@ function page_title(string $page): string { return [
     'sales' => 'Sales History', 'sale_form' => 'Create New Sale', 'invoice' => 'Sales Invoice',
     'categories' => 'Medicine Categories', 'suppliers' => 'Suppliers', 'users' => 'User Management',
     'register' => 'Customer Registration', 'catalog' => 'Medicine Catalog', 'profile' => 'My Account Profile',
-    'cart' => 'Shopping Cart', 'checkout' => 'Order Checkout'
+    'cart' => 'Shopping Cart', 'checkout' => 'Order Checkout', 'order_confirmation' => 'Order Confirmation'
 ][$page] ?? 'PharmaCare'; }
 
 // -------------------------------------------------------------

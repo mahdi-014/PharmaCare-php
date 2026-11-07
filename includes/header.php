@@ -14,6 +14,7 @@ $subtitles = [
  'catalog' => 'Browse, search, and order available medicines online',
  'cart' => 'Review selected medicines and adjust quantities',
  'checkout' => 'Provide delivery address and confirm your order',
+ 'order_confirmation' => 'Order summary, status, and verification details',
  'profile' => 'Manage your customer profile and delivery address',
  'register' => 'Create a customer account to order medicines online'
 ];
