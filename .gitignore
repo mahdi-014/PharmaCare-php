@@ -1,0 +1,34 @@
+# PharmaCare - Repository Git Ignore
+
+# Windows thumbnail caches & desktop configurations
+Thumbs.db
+Thumbs.db:encryptable
+ehthumbs.db
+ehthumbs_vista.db
+[Dd]esktop.ini
+
+# macOS metadata
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE and Editor configurations
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+*.swp
+*.swo
+*~
+
+# PHP & Session temporary files
+*.tmp
+*.log
+sess_*
+cookies*.txt
+
+# Local environment overrides
+config.local.php
+.env
+.env.local
+
