@@ -89,6 +89,19 @@ if ($action === 'logout') {
     session_destroy();
     redirect('login');
 }
+// Cart actions authorization guard
+$cartActions = ['cart_add', 'cart_update', 'cart_remove', 'cart_clear'];
+if (in_array($action, $cartActions, true)) {
+    if (!user()) {
+        flash('error', 'Please sign in or create an account to manage your shopping cart.');
+        redirect('login');
+    }
+    if (!is_customer()) {
+        flash('error', 'Staff and Administrator accounts cannot place customer cart orders. Please use POS or sign in as a customer.');
+        redirect('dashboard');
+    }
+}
+
 require_login();
 // Sensitive actions must be authorized independently of the UI.
 $adminActions = ['category_save','category_delete','supplier_save','supplier_delete','medicine_save','medicine_toggle','user_create','user_toggle'];
@@ -96,7 +109,9 @@ if (in_array($action, $adminActions, true)) require_admin();
 $fallback = match($action) {
     'category_save','category_delete'=>'categories','supplier_save','supplier_delete'=>'suppliers',
     'medicine_save','medicine_toggle'=>'medicines','user_create','user_toggle'=>'users',
-    'sale_create'=>'sale_form','profile_update'=>'profile',default=>'dashboard'
+    'sale_create'=>'sale_form','profile_update'=>'profile',
+    'cart_add'=>'catalog','cart_update','cart_remove','cart_clear'=>'cart',
+    default=>'dashboard'
 };
 try {
     switch ($action) {
@@ -113,6 +128,70 @@ try {
             execute_sql('UPDATE app_users SET full_name = ?, phone = ?, address = ? WHERE id = ?', [$fullName, $phone, $address, $userId]);
             $_SESSION['user']['full_name'] = $fullName;
             flash('success', 'Your profile details have been updated.');
+            break;
+
+        case 'cart_add':
+            $medicineId = positive_int($_POST['medicine_id'] ?? 0, 'Medicine ID');
+            $requestedQty = positive_int($_POST['quantity'] ?? 1, 'Quantity');
+
+            $medicine = fetch_one(medicine_query() . ' WHERE m.id = ?', [$medicineId]);
+            if (!$medicine) {
+                throw new DomainException('Medicine record not found.');
+            }
+
+            $currentCartQty = (int)($_SESSION['cart'][$medicineId]['quantity'] ?? 0);
+            $maxStock = (int)$medicine['quantity'];
+
+            $finalQty = cart_add_item($medicine, $requestedQty);
+
+            if ($currentCartQty + $requestedQty > $maxStock) {
+                flash('warning', 'Only ' . $maxStock . ' unit(s) available in stock. Cart updated to ' . $finalQty . ' unit(s).');
+            } else {
+                flash('success', 'Added ' . $requestedQty . ' × ' . $medicine['name'] . ' to your cart.');
+            }
+
+            $redirectTo = (string)($_POST['redirect_to'] ?? 'catalog');
+            redirect($redirectTo === 'cart' ? 'cart' : 'catalog');
+            break;
+
+        case 'cart_update':
+            $medicineId = positive_int($_POST['medicine_id'] ?? 0, 'Medicine ID');
+            $quantity = positive_int($_POST['quantity'] ?? 0, 'Quantity', true);
+
+            $medicine = fetch_one('SELECT id, name, active, expiry_date, quantity, selling_price FROM medicines WHERE id = ?', [$medicineId]);
+            if (!$medicine || !(int)$medicine['active'] || $medicine['expiry_date'] < date('Y-m-d')) {
+                cart_remove_item($medicineId);
+                throw new DomainException('This medicine is no longer available and has been removed from your cart.');
+            }
+
+            $maxStock = (int)$medicine['quantity'];
+            if ($quantity <= 0) {
+                cart_remove_item($medicineId);
+                flash('success', 'Item removed from your cart.');
+            } else {
+                if ($quantity > $maxStock) {
+                    cart_update_item($medicineId, $maxStock, $maxStock);
+                    flash('warning', 'Requested quantity exceeds available stock. Quantity adjusted to ' . $maxStock . ' unit(s).');
+                } else {
+                    cart_update_item($medicineId, $quantity, $maxStock);
+                    flash('success', 'Cart updated successfully.');
+                }
+            }
+            redirect('cart');
+            break;
+
+        case 'cart_remove':
+            $medicineId = positive_int($_POST['medicine_id'] ?? 0, 'Medicine ID');
+            $itemName = (string)($_SESSION['cart'][$medicineId]['name'] ?? 'Item');
+            cart_remove_item($medicineId);
+            flash('success', 'Removed ' . $itemName . ' from your cart.');
+            redirect('cart');
+            break;
+
+        case 'cart_clear':
+            cart_clear();
+            flash('success', 'Your shopping cart has been cleared.');
+            redirect('cart');
             break;
         case 'category_save':
             $id = (int)($_POST['id'] ?? 0);

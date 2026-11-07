@@ -98,5 +98,117 @@ function page_title(string $page): string { return [
     'dashboard' => 'Dashboard', 'medicines' => 'Medicine Inventory', 'medicine_form' => 'Medicine Details',
     'sales' => 'Sales History', 'sale_form' => 'Create New Sale', 'invoice' => 'Sales Invoice',
     'categories' => 'Medicine Categories', 'suppliers' => 'Suppliers', 'users' => 'User Management',
-    'register' => 'Customer Registration', 'catalog' => 'Medicine Catalog', 'profile' => 'My Account Profile'
+    'register' => 'Customer Registration', 'catalog' => 'Medicine Catalog', 'profile' => 'My Account Profile',
+    'cart' => 'Shopping Cart', 'checkout' => 'Order Checkout'
 ][$page] ?? 'PharmaCare'; }
+
+// -------------------------------------------------------------
+// Customer Shopping Cart Session Helpers
+// -------------------------------------------------------------
+
+function cart_get_items(): array
+{
+    if (!isset($_SESSION['cart']) || !is_array($_SESSION['cart'])) {
+        $_SESSION['cart'] = [];
+    }
+    return $_SESSION['cart'];
+}
+
+function cart_get_count(): int
+{
+    $totalUnits = 0;
+    foreach (cart_get_items() as $item) {
+        $totalUnits += (int)($item['quantity'] ?? 0);
+    }
+    return $totalUnits;
+}
+
+function cart_get_line_count(): int
+{
+    return count(cart_get_items());
+}
+
+function cart_get_total(): float
+{
+    $grandTotal = 0.0;
+    foreach (cart_get_items() as $item) {
+        $grandTotal += ((float)($item['price'] ?? 0)) * ((int)($item['quantity'] ?? 0));
+    }
+    return round($grandTotal, 2);
+}
+
+function cart_requires_prescription(): bool
+{
+    foreach (cart_get_items() as $item) {
+        if (!empty($item['requires_prescription'])) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function cart_add_item(array $medicine, int $quantity = 1): int
+{
+    $medicineId = (int)$medicine['id'];
+    $maxStock = (int)$medicine['quantity'];
+
+    if ($maxStock <= 0) {
+        throw new DomainException('This medicine is currently out of stock.');
+    }
+    if (!(int)$medicine['active']) {
+        throw new DomainException('This medicine is currently inactive and cannot be ordered.');
+    }
+    if (!empty($medicine['expiry_date']) && $medicine['expiry_date'] < date('Y-m-d')) {
+        throw new DomainException('This medicine batch has expired and cannot be ordered.');
+    }
+
+    $cart = cart_get_items();
+    $currentQty = isset($cart[$medicineId]) ? (int)$cart[$medicineId]['quantity'] : 0;
+    $targetQty = $currentQty + $quantity;
+
+    if ($targetQty > $maxStock) {
+        if ($currentQty >= $maxStock) {
+            throw new DomainException('Cannot add more units. You already have the maximum available stock (' . $maxStock . ' units) in your cart.');
+        }
+        $targetQty = $maxStock;
+    }
+
+    $_SESSION['cart'][$medicineId] = [
+        'id' => $medicineId,
+        'name' => (string)$medicine['name'],
+        'category_name' => (string)($medicine['category_name'] ?? 'General'),
+        'price' => (float)$medicine['selling_price'],
+        'quantity' => $targetQty,
+        'batch_number' => (string)($medicine['batch_number'] ?? ''),
+        'max_stock' => $maxStock,
+        'requires_prescription' => !empty($medicine['prescription_required']),
+    ];
+
+    return $targetQty;
+}
+
+function cart_update_item(int $medicineId, int $quantity, int $maxStock): void
+{
+    if (!isset($_SESSION['cart'][$medicineId])) {
+        throw new DomainException('Item is not in your cart.');
+    }
+
+    if ($quantity <= 0) {
+        unset($_SESSION['cart'][$medicineId]);
+        return;
+    }
+
+    $clampedQty = min($quantity, $maxStock);
+    $_SESSION['cart'][$medicineId]['quantity'] = $clampedQty;
+    $_SESSION['cart'][$medicineId]['max_stock'] = $maxStock;
+}
+
+function cart_remove_item(int $medicineId): void
+{
+    unset($_SESSION['cart'][$medicineId]);
+}
+
+function cart_clear(): void
+{
+    $_SESSION['cart'] = [];
+}

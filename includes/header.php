@@ -12,13 +12,25 @@ $subtitles = [
  'suppliers' => 'Manage supplier and contact information',
  'users' => 'Create staff accounts and control access',
  'catalog' => 'Browse, search, and order available medicines online',
+ 'cart' => 'Review selected medicines and adjust quantities',
+ 'checkout' => 'Provide delivery address and confirm your order',
  'profile' => 'Manage your customer profile and delivery address',
  'register' => 'Create a customer account to order medicines online'
 ];
 
-if (is_customer()) {
+$cartCount = cart_get_count();
+
+if (!user()) {
     $links = [
         ['catalog', 'capsule-pill', 'Browse Medicines', 'catalog'],
+    ];
+    $brandUrl = url('catalog');
+    $brandSubtitle = 'Online Storefront';
+} elseif (is_customer()) {
+    $cartLabel = 'Shopping Cart' . ($cartCount > 0 ? ' (' . $cartCount . ')' : '');
+    $links = [
+        ['catalog', 'capsule-pill', 'Browse Medicines', 'catalog'],
+        ['cart', 'cart3', $cartLabel, 'cart'],
         ['profile', 'person-circle', 'My Profile', 'profile'],
     ];
     $brandUrl = url('catalog');
@@ -57,10 +69,49 @@ if (is_customer()) {
  <?php else: ?><a class="<?=($active === $selected ? 'active' : '')?>" href="<?=e(url($dest))?>"><i class="bi bi-<?=e($icon)?>"></i><span><?=e($label)?></span></a><?php endif; ?>
  <?php endforeach; ?>
  </nav>
- <div class="sidebar-footer"><div class="small text-white-50">Signed in as</div><div class="fw-semibold text-white text-truncate"><?=e(user()['username'])?> <small>(<?=e(user()['role'])?>)</small></div>
- <form method="post" action="actions.php"><input type="hidden" name="action" value="logout"><?=csrf_field()?><button class="btn btn-sm btn-outline-light w-100" type="submit"><i class="bi bi-box-arrow-left me-1"></i><span>Logout</span></button></form></div>
+ <?php if (user()): ?>
+  <div class="sidebar-footer">
+   <div class="small text-white-50">Signed in as</div>
+   <div class="fw-semibold text-white text-truncate"><?=e(user()['username'])?> <small>(<?=e(user()['role'])?>)</small></div>
+   <form method="post" action="actions.php"><input type="hidden" name="action" value="logout"><?=csrf_field()?><button class="btn btn-sm btn-outline-light w-100" type="submit"><i class="bi bi-box-arrow-left me-1"></i><span>Logout</span></button></form>
+  </div>
+ <?php else: ?>
+  <div class="sidebar-footer">
+   <div class="small text-white-50">Customer Access</div>
+   <div class="d-flex flex-column gap-2 mt-2">
+    <a href="index.php?page=login" class="btn btn-sm btn-success w-100"><i class="bi bi-box-arrow-in-right me-1"></i>Sign In</a>
+    <a href="index.php?page=register" class="btn btn-sm btn-outline-light w-100"><i class="bi bi-person-plus me-1"></i>Register</a>
+   </div>
+  </div>
+ <?php endif; ?>
 </aside>
 <div class="app-main">
- <header class="app-topbar"><div class="d-flex align-items-center gap-3"><button type="button" class="btn btn-light d-sm-none" id="mobileMenuBtn" aria-label="Open menu"><i class="bi bi-list fs-5"></i></button><div><h1><?=e($heading)?></h1><p><?=e($subtitles[$page]??'PharmaCare Management System')?></p></div></div><div class="topbar-user"><span class="avatar"><i class="bi bi-person-fill"></i></span><span><strong><?=e(user()['full_name'])?></strong><small><?=e(user()['role'])?> account</small></span></div></header>
+ <header class="app-topbar">
+  <div class="d-flex align-items-center gap-3">
+   <button type="button" class="btn btn-light d-sm-none" id="mobileMenuBtn" aria-label="Open menu"><i class="bi bi-list fs-5"></i></button>
+   <div><h1><?=e($heading)?></h1><p><?=e($subtitles[$page]??'PharmaCare Management System')?></p></div>
+  </div>
+  <?php if (user()): ?>
+   <div class="d-flex align-items-center gap-2">
+    <?php if (is_customer()): ?>
+     <a href="<?= e(url('cart')) ?>" class="btn btn-outline-success position-relative me-2" title="Shopping Cart">
+      <i class="bi bi-cart3"></i>
+      <span class="d-none d-md-inline ms-1">Cart</span>
+      <?php if ($cartCount > 0): ?>
+       <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 11px;">
+        <?= $cartCount ?>
+       </span>
+      <?php endif; ?>
+     </a>
+    <?php endif; ?>
+    <div class="topbar-user"><span class="avatar"><i class="bi bi-person-fill"></i></span><span><strong><?=e(user()['full_name'])?></strong><small><?=e(user()['role'])?> account</small></span></div>
+   </div>
+  <?php else: ?>
+   <div class="d-flex align-items-center gap-2">
+    <a href="index.php?page=login" class="btn btn-sm btn-outline-primary"><i class="bi bi-box-arrow-in-right me-1"></i>Sign In</a>
+    <a href="index.php?page=register" class="btn btn-sm btn-success"><i class="bi bi-person-plus me-1"></i>Register</a>
+   </div>
+  <?php endif; ?>
+ </header>
  <main class="content">
  <?php show_flashes(); ?>
