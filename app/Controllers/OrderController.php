@@ -111,6 +111,12 @@ class OrderController
         $orderNum = $order ? $order['order_number'] : $orderId;
 
         flash('success', "Order #{$orderNum} status updated to {$newStatus}.");
+
+        $referer = (string)($_SERVER['HTTP_REFERER'] ?? '');
+        if (str_contains($referer, 'page=orders') && !str_contains($referer, 'page=order_detail')) {
+            redirect('orders');
+        }
+
         redirect('order_detail', ['id' => $orderId]);
     }
 

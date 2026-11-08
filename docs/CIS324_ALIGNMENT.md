@@ -3,7 +3,7 @@
 **Course:** CIS324 Web Engineering  
 **Project Topic 13:** Pharmacy Management System & Online Medicine Ordering  
 **Implementation Stack:** Core PHP 8.3, MariaDB 10.11 / MySQL InnoDB, PDO, Bootstrap 5.3.3, Vanilla JavaScript (Fetch API)  
-**Verification Status:** 9 Test Suites / 319 Assertions Passing (100% Pass Rate)  
+**Verification Status:** 9 Test Suites / 334 Assertions Passing (100% Pass Rate)  
 
 ---
 
@@ -169,8 +169,11 @@ Relational database management systems (RDBMS) prevent data redundancy, anomalie
 3. **Pessimistic Row Locking (`SELECT ... FOR UPDATE`):**
    Implemented in [`InventoryService::deduct_batch_stock()`](file:///d:/PharmaCare-PHP-Complete/PharmaCare-PHP/app/Services/InventoryService.php#L26-L55) to guarantee transactional consistency across concurrent POS checkouts and online orders.
 
+4. **Cross-Channel Relational Bridge (`v3_sales_channel_bridge.sql`):**
+   To unify customer online ordering and core financial accounting without duplicating tables, `sales` was non-destructively extended with `channel VARCHAR(20) DEFAULT 'POS'` and a foreign key `order_id` referencing `orders(id)` (`ON DELETE RESTRICT`). This establishes a 1:1 relational bridge between completed orders and the central sales ledger, unifying revenue reporting and invoicing across both digital and physical dispensaries while maintaining zero double-deduction of inventory.
+
 ### Viva Defense Talking Points
-> *"PharmaCare's 11-table schema is normalized to Third Normal Form (3NF), eliminating insertion, update, and deletion anomalies. Foreign keys enforce referential integrity using RESTRICT rules on catalog and customer entities to prevent orphan records. For financial and clinical accuracy, line items store immutable point-in-time snapshots of medicine names and prices. In addition, our shared InventoryService uses pessimistic row locking (`SELECT FOR UPDATE`) within ACID transactions, guaranteeing that inventory can never be oversold during concurrent checkouts."*
+> *"PharmaCare's 11-table schema is normalized to Third Normal Form (3NF), eliminating insertion, update, and deletion anomalies. Foreign keys enforce referential integrity using RESTRICT rules on catalog, customer, and bridged order entities. For financial and clinical accuracy, line items store immutable point-in-time snapshots of medicine names and prices. In addition, our shared InventoryService uses pessimistic row locking (`SELECT FOR UPDATE`) within ACID transactions, guaranteeing that inventory can never be oversold during concurrent checkouts, while completed online orders bridge automatically to the core sales ledger."*
 
 ---
 
@@ -360,7 +363,7 @@ As web applications expand, monolithic procedural code becomes difficult to main
      - `Prescription`: Prescription document metadata persistence and verification state updates.
    - **Domain Services ([`app/Services/`](file:///d:/PharmaCare-PHP-Complete/PharmaCare-PHP/app/Services/)):** Reusable business logic independent of HTTP controllers:
      - `InventoryService`: Row-level locking, atomic stock deduction, FEFO batch selection, and cancellation stock restoration.
-     - `OrderService`: Multi-state order lifecycle engine, transition validation, and prescription audit gating.
+     - `OrderService`: Streamlined order lifecycle engine, transition validation, single-click fast-track completion, sales channel ledger synchronization, and prescription audit gating.
    - **Views ([`pages/`](file:///d:/PharmaCare-PHP-Complete/PharmaCare-PHP/pages/)):** Presentation templates rendering semantic HTML with escaped variables.
 
 2. **PSR-4 Autoloading Without Third-Party Package Managers:**
@@ -376,7 +379,7 @@ As web applications expand, monolithic procedural code becomes difficult to main
 | **Maintainability** | Bug fixes required scanning large, unstructured PHP files. | Modular class files with single responsibilities enable rapid, safe code modifications. |
 
 ### Viva Defense Talking Points
-> *"In Phase 7, we refactored the online ordering module into a clean, Layered MVC architecture. We built a native PSR-4 autoloader that avoids Composer dependencies. Controllers handle HTTP input, Models encapsulate PDO database queries, Domain Services execute concurrency and lifecycle logic, and Views render semantic HTML. Crucially, the shared InventoryService provides a single source of truth for stock management across both modern online orders and legacy POS billing."*
+> *"In Phase 7, we refactored the online ordering module into a clean, Layered MVC architecture. We built a native PSR-4 autoloader that avoids Composer dependencies. Controllers handle HTTP input, Models encapsulate PDO database queries, Domain Services execute concurrency and lifecycle logic, and Views render semantic HTML. Crucially, the shared InventoryService provides a single source of truth for stock management across both modern online orders and legacy POS billing, while OrderService seamlessly synchronizes completed online orders into the core sales ledger without double-deduction."*
 
 ---
 
@@ -388,7 +391,7 @@ Software engineering requires critical evaluation of system performance, operati
 ### Implementation Evidence in PharmaCare
 
 1. **System Evaluation & Empirical Verification:**
-   - **Correctness & Reliability:** Verified via 9 automated test suites running 319 assertions across unit, integration, database integrity, and security domains with 100% pass rates.
+   - **Correctness & Reliability:** Verified via 9 automated test suites running 334 assertions across unit, integration, database integrity, and security domains with 100% pass rates.
    - **Concurrency Safety:** Evaluated through simulated race conditions in `tests/order_test.php`, confirming that pessimistic row locks (`SELECT ... FOR UPDATE`) prevent inventory overselling even under simultaneous checkouts.
    - **Lightweight Footprint:** Zero external framework overhead ensures sub-20ms page rendering times on standard hardware, with zero background Node.js or Java daemon memory overhead.
 
@@ -403,4 +406,4 @@ Software engineering requires critical evaluation of system performance, operati
    - **Automated Prescription OCR:** Integrate computer vision APIs to perform optical character recognition on uploaded prescription images, pre-validating doctor signatures and prescribed medications.
 
 ### Viva Defense Talking Points
-> *"PharmaCare has been verified with 319 automated tests, proving both functional correctness and concurrency safety. To scale this system to millions of users, we would transition session storage from the local filesystem to a Redis cluster, implement database read-replicas for catalog browsing, and introduce asynchronous message queues for SMS order notifications. The layered architecture we established in Phase 7 provides the exact modular boundaries required to transition into microservices when business growth demands it."*
+> *"PharmaCare has been verified with 334 automated tests, proving both functional correctness and concurrency safety. To scale this system to millions of users, we would transition session storage from the local filesystem to a Redis cluster, implement database read-replicas for catalog browsing, and introduce asynchronous message queues for SMS order notifications. The layered architecture we established in Phase 7 provides the exact modular boundaries required to transition into microservices when business growth demands it."*

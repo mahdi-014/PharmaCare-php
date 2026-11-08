@@ -26,6 +26,7 @@ $sales = fetch_all('SELECT s.*, u.full_name AS sold_by_name, u.username AS sold_
                 <tr>
                     <th>Invoice #</th>
                     <th>Date &amp; Time</th>
+                    <th>Channel</th>
                     <th>Customer</th>
                     <th>Sold By</th>
                     <th>Items Sold</th>
@@ -36,8 +37,20 @@ $sales = fetch_all('SELECT s.*, u.full_name AS sold_by_name, u.username AS sold_
             <tbody>
                 <?php foreach ($sales as $s): ?>
                     <tr>
-                        <td class="fw-semibold"><?= e($s['invoice_number']) ?></td>
+                        <td class="fw-semibold">
+                            <?= e($s['invoice_number']) ?>
+                            <?php if (!empty($s['order_id'])): ?>
+                                <div class="small"><a href="<?= e(url('order_detail', ['id' => $s['order_id']])) ?>" class="text-decoration-none text-muted">Order #<?= (int)$s['order_id'] ?></a></div>
+                            <?php endif; ?>
+                        </td>
                         <td><?= e(nice_date($s['sale_date'], true)) ?></td>
+                        <td>
+                            <?php if (($s['channel'] ?? 'POS') === 'ONLINE'): ?>
+                                <span class="badge text-bg-primary"><i class="bi bi-globe me-1"></i>Online</span>
+                            <?php else: ?>
+                                <span class="badge text-bg-secondary"><i class="bi bi-shop me-1"></i>POS</span>
+                            <?php endif; ?>
+                        </td>
                         <td>
                             <?= e($s['customer_name'] ?: 'Walk-in Customer') ?>
                             <span class="subtext"><?= e($s['customer_phone'] ?? '') ?></span>
@@ -59,7 +72,7 @@ $sales = fetch_all('SELECT s.*, u.full_name AS sold_by_name, u.username AS sold_
                 <?php endforeach; ?>
                 <?php if (!$sales): ?>
                     <tr>
-                        <td colspan="7">
+                        <td colspan="8">
                             <div class="empty-state">
                                 <i class="bi bi-receipt"></i>
                                 <p>No transactions have been recorded yet.</p>

@@ -268,9 +268,52 @@ class OrderService
                 }
             }
 
-            // Payment synchronization
+            // Payment synchronization & Sales Ledger Bridge upon Order Completion
             if ($newStatus === 'COMPLETED') {
                 Order::markPaymentStatus($pdo, $orderId, 'PAID');
+
+                // Idempotently bridge completed online order to sales and sale_items
+                $checkSale = $pdo->prepare('SELECT id FROM sales WHERE order_id = ? FOR UPDATE');
+                $checkSale->execute([$orderId]);
+                $existingSale = $checkSale->fetch();
+
+                if (!$existingSale) {
+                    $orderNum = (string)$order['order_number'];
+                    $invSuffix = str_starts_with($orderNum, 'ORD-') ? substr($orderNum, 4) : $orderNum;
+                    $invoiceNumber = 'INV-ORD-' . $invSuffix;
+                    $soldById = $actorId ?: (int)$order['customer_id'];
+
+                    $saleStmt = $pdo->prepare(
+                        'INSERT INTO sales 
+                         (invoice_number, sale_date, customer_name, customer_phone, subtotal, discount, total_amount, sold_by_id, channel, order_id) 
+                         VALUES (?, NOW(), ?, ?, ?, 0.00, ?, ?, "ONLINE", ?)'
+                    );
+                    $saleStmt->execute([
+                        $invoiceNumber,
+                        $order['customer_name'],
+                        $order['customer_phone'],
+                        $order['subtotal'],
+                        $order['total_amount'],
+                        $soldById,
+                        $orderId
+                    ]);
+                    $saleId = (int)$pdo->lastInsertId();
+
+                    $itemsStmt = $pdo->prepare('SELECT medicine_id, quantity, unit_price, line_total FROM order_items WHERE order_id = ?');
+                    $itemsStmt->execute([$orderId]);
+                    $orderItems = $itemsStmt->fetchAll();
+
+                    $itemInsert = $pdo->prepare('INSERT INTO sale_items (sale_id, medicine_id, quantity, unit_price, line_total) VALUES (?, ?, ?, ?, ?)');
+                    foreach ($orderItems as $oi) {
+                        $itemInsert->execute([
+                            $saleId,
+                            (int)$oi['medicine_id'],
+                            (int)$oi['quantity'],
+                            $oi['unit_price'],
+                            $oi['line_total']
+                        ]);
+                    }
+                }
             }
 
             Order::updateStatus($pdo, $orderId, $newStatus);

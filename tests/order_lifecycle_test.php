@@ -19,6 +19,9 @@ declare(strict_types=1);
 
 require_once dirname(__DIR__) . '/includes/bootstrap.php';
 
+use App\Services\InventoryService;
+use App\Services\OrderService;
+
 $passed = 0;
 
 function assert_lifecycle(bool $condition, string $message): void
@@ -235,22 +238,70 @@ try {
     assert_lifecycle(!$traversalAllowed, "Path traversal attempt outside storage/prescriptions/ blocked");
 
     // -------------------------------------------------------------
-    // 7. Cleanup & Teardown
+    // 7. Test Fast-Track Simplified Lifecycle & Sales Synchronization Bridge
+    // -------------------------------------------------------------
+    echo "\n--- Section 7: Simplified Lifecycle & Sales Synchronization Bridge ---\n";
+    
+    // 7.1 Verify state machine allows direct fast-track PENDING -> COMPLETED
+    $pendingTransitions = get_allowed_order_transitions('PENDING');
+    assert_lifecycle(in_array('COMPLETED', $pendingTransitions, true), "Fast-track completion permissible: PENDING -> COMPLETED in allowed transitions");
+    assert_lifecycle(in_array('CONFIRMED', $pendingTransitions, true), "PENDING -> CONFIRMED in allowed transitions");
+
+    // 7.2 Create an OTC test order to test single-click Fast-Track completion & sales sync
+    $orderNum3 = 'ORD-' . date('Ymd') . '-FT' . rand(100, 999);
+    $pdo->beginTransaction();
+    InventoryService::deductBatchStock($pdo, $batchId, 2);
+
+    $ins->execute([$orderNum3, (int)$customer['id'], $customer['full_name']]);
+    $orderId3 = (int)$pdo->lastInsertId();
+    $pdo->prepare('UPDATE orders SET prescription_required = 0, prescription_status = "NOT_REQUIRED" WHERE id = ?')->execute([$orderId3]);
+    $pdo->prepare('INSERT INTO order_items (order_id, medicine_id, quantity, unit_price, line_total) VALUES (?, ?, 2, 25.00, 50.00)')
+        ->execute([$orderId3, $batchId]);
+    $pdo->commit();
+
+    $stockBeforeCompletion = (int)scalar("SELECT quantity FROM medicines WHERE id = ?", [$batchId]);
+
+    // 7.3 Execute single-click Fast-Track order completion
+    OrderService::updateOrderStatus($orderId3, 'COMPLETED', 'Fast-track completed by staff', (int)$staff['id']);
+
+    $completedOrder3 = fetch_one("SELECT * FROM orders WHERE id = ?", [$orderId3]);
+    assert_lifecycle($completedOrder3['order_status'] === 'COMPLETED', "Order #3 fast-tracked directly from PENDING to COMPLETED in 1 step");
+    assert_lifecycle($completedOrder3['payment_status'] === 'PAID', "Order #3 payment automatically marked as PAID");
+
+    // 7.4 Verify Sales Synchronization Bridge: Record created in sales & sale_items
+    $linkedSale = fetch_one("SELECT * FROM sales WHERE order_id = ?", [$orderId3]);
+    assert_lifecycle($linkedSale !== null, "Sales synchronization bridge created corresponding sales record for Order #3");
+    assert_lifecycle($linkedSale['channel'] === 'ONLINE', "Synchronized sale marked with channel = 'ONLINE'");
+    assert_lifecycle((float)$linkedSale['total_amount'] === 50.00, "Synchronized sale total matches order total (50.00)");
+    assert_lifecycle(str_starts_with($linkedSale['invoice_number'], 'INV-ORD-'), "Synchronized invoice number formatted as 'INV-ORD-...'");
+
+    $linkedItems = fetch_all("SELECT * FROM sale_items WHERE sale_id = ?", [$linkedSale['id']]);
+    assert_lifecycle(count($linkedItems) === 1, "Synchronized sale_items contains 1 line item");
+    assert_lifecycle((int)$linkedItems[0]['medicine_id'] === $batchId, "sale_items references correct medicine ID");
+    assert_lifecycle((int)$linkedItems[0]['quantity'] === 2, "sale_items quantity matches order quantity (2 units)");
+
+    // 7.5 Verify ZERO double-deduction of inventory
+    $stockAfterCompletion = (int)scalar("SELECT quantity FROM medicines WHERE id = ?", [$batchId]);
+    assert_lifecycle($stockAfterCompletion === $stockBeforeCompletion, "Verified: Inventory was NOT double-deducted during sales bridge synchronization ({$stockAfterCompletion} === {$stockBeforeCompletion})");
+
+    // -------------------------------------------------------------
+    // 8. Cleanup & Teardown
     // -------------------------------------------------------------
     if (file_exists($mockFilePath)) {
         @unlink($mockFilePath);
     }
     assert_lifecycle(!file_exists($mockFilePath), "Mock prescription test file removed from disk");
 
-    // Restore stock for Order 1
+    // Restore stock for Order 1 and Order 3
     $pdo->beginTransaction();
-    InventoryService::restoreBatchStock($pdo, $batchId, $orderQty);
+    InventoryService::restoreBatchStock($pdo, $batchId, $orderQty + 2);
     $pdo->commit();
 
-    // Delete test orders (cascades to order_items, prescriptions, order_status_history)
-    $pdo->exec("DELETE FROM orders WHERE id IN ({$orderId1}, {$orderId2})");
+    // Delete bridged sales and test orders
+    $pdo->exec("DELETE FROM sales WHERE order_id = {$orderId3}");
+    $pdo->exec("DELETE FROM orders WHERE id IN ({$orderId1}, {$orderId2}, {$orderId3})");
 
-    $orphanedOrders = fetch_one("SELECT id FROM orders WHERE id IN ({$orderId1}, {$orderId2})");
+    $orphanedOrders = fetch_one("SELECT id FROM orders WHERE id IN ({$orderId1}, {$orderId2}, {$orderId3})");
     assert_lifecycle($orphanedOrders === null, "Test orders deleted with zero orphaned records");
 
     $finalStock = (int)scalar("SELECT quantity FROM medicines WHERE id = ?", [$batchId]);

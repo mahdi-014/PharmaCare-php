@@ -40,12 +40,38 @@ if (!is_staff_or_admin() && !is_customer()) {
     exit('Access denied.');
 }
 
-// Strict Directory Traversal Protection
-$baseStorageDir = realpath(dirname(__DIR__) . '/storage/prescriptions');
-$filePath = dirname(__DIR__) . '/' . ltrim((string)$prescription['file_path'], '/\\');
+// Strict Directory Traversal Protection & Resilient Dual-Path Storage Resolution
+$canonicalBase = realpath(dirname(__DIR__) . '/storage/prescriptions');
+$legacyBase = realpath(dirname(__DIR__, 2) . '/storage/prescriptions');
+
+$relativePath = ltrim((string)$prescription['file_path'], '/\\');
+$filePath = dirname(__DIR__) . '/' . $relativePath;
 $realFilePath = realpath($filePath);
 
-if (!$realFilePath || !$baseStorageDir || !str_starts_with($realFilePath, $baseStorageDir) || !file_exists($realFilePath)) {
+// Check legacy parent storage directory fallback if not found in canonical location
+if ((!$realFilePath || !file_exists($realFilePath)) && $legacyBase) {
+    $legacyFilePath = dirname(__DIR__, 2) . '/' . $relativePath;
+    $legacyReal = realpath($legacyFilePath);
+    if ($legacyReal && file_exists($legacyReal) && str_starts_with($legacyReal, $legacyBase)) {
+        $realFilePath = $legacyReal;
+        // Self-heal: copy to canonical storage directory for long-term consistency
+        if ($canonicalBase && is_dir($canonicalBase)) {
+            $destPath = dirname(__DIR__) . '/' . $relativePath;
+            $destDir = dirname($destPath);
+            if (!is_dir($destDir)) {
+                @mkdir($destDir, 0755, true);
+            }
+            @copy($legacyReal, $destPath);
+        }
+    }
+}
+
+$isAllowed = $realFilePath && file_exists($realFilePath) && (
+    ($canonicalBase && str_starts_with($realFilePath, $canonicalBase)) ||
+    ($legacyBase && str_starts_with($realFilePath, $legacyBase))
+);
+
+if (!$isAllowed) {
     http_response_code(404);
     exit('Prescription file could not be located on disk.');
 }

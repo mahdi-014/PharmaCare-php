@@ -21,6 +21,10 @@ foreach ($medicines as $m) {
 $totalActive = count($medicines) - $counts['INACTIVE'];
 $stats = fetch_one('SELECT COUNT(*) AS invoices, COALESCE(SUM(CASE WHEN DATE(sale_date) = CURDATE() THEN total_amount ELSE 0 END), 0) AS today_sales FROM sales');
 $recentSales = fetch_all('SELECT s.*, u.username FROM sales s JOIN app_users u ON s.sold_by_id = u.id ORDER BY s.sale_date DESC, s.id DESC LIMIT 10');
+$pendingOrdersCount = 0;
+try {
+    $pendingOrdersCount = (int)scalar("SELECT COUNT(*) FROM orders WHERE order_status IN ('PENDING', 'CONFIRMED')");
+} catch (Throwable $e) {}
 ?>
 
 <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-4">
@@ -28,10 +32,30 @@ $recentSales = fetch_all('SELECT s.*, u.username FROM sales s JOIN app_users u O
         <div class="text-secondary small fw-bold">TODAY'S OVERVIEW</div>
         <h2 class="h4 mb-0">Welcome, <?= e(user()['full_name']) ?> <span class="fs-5">👋</span></h2>
     </div>
-    <a href="<?= e(url('sale_form')) ?>" class="btn btn-primary">
-        <i class="bi bi-cart-plus me-1"></i>Create New Sale
-    </a>
+    <div class="d-flex gap-2">
+        <a href="<?= e(url('catalog')) ?>" class="btn btn-outline-secondary" title="View customer storefront catalog">
+            <i class="bi bi-shop me-1"></i>Storefront View
+        </a>
+        <a href="<?= e(url('sale_form')) ?>" class="btn btn-primary">
+            <i class="bi bi-cart-plus me-1"></i>Create New Sale
+        </a>
+    </div>
 </div>
+
+<?php if ($pendingOrdersCount > 0): ?>
+    <div class="alert alert-warning d-flex justify-content-between align-items-center mb-4 shadow-sm border-warning">
+        <div class="d-flex align-items-center gap-2">
+            <i class="bi bi-box-seam-fill fs-4 text-warning"></i>
+            <div>
+                <strong><?= $pendingOrdersCount ?> Online Order(s) Awaiting Fulfillment!</strong>
+                <div class="small text-secondary d-none d-md-block">New customer orders require prescription review and dispatch in the orders queue.</div>
+            </div>
+        </div>
+        <a href="<?= e(url('orders')) ?>" class="btn btn-sm btn-warning fw-bold text-nowrap ms-3">
+            <i class="bi bi-arrow-right-circle me-1"></i>Orders Queue
+        </a>
+    </div>
+<?php endif; ?>
 
 <!-- Primary Metric Cards -->
 <div class="row g-3 mb-4">
@@ -124,9 +148,14 @@ $recentSales = fetch_all('SELECT s.*, u.username FROM sales s JOIN app_users u O
                 <?php foreach ($recentSales as $s): ?>
                     <div class="d-flex align-items-center justify-content-between px-3 py-3 border-bottom">
                         <div>
-                            <a class="fw-semibold text-dark" href="<?= e(url('invoice', ['id' => $s['id']])) ?>">
-                                <?= e($s['invoice_number']) ?>
-                            </a>
+                            <div class="d-flex align-items-center gap-2">
+                                <a class="fw-semibold text-dark" href="<?= e(url('invoice', ['id' => $s['id']])) ?>">
+                                    <?= e($s['invoice_number']) ?>
+                                </a>
+                                <?php if (($s['channel'] ?? 'POS') === 'ONLINE'): ?>
+                                    <span class="badge text-bg-primary" style="font-size: 10px;">Online</span>
+                                <?php endif; ?>
+                            </div>
                             <span class="subtext"><?= e(nice_date($s['sale_date'], true)) ?></span>
                         </div>
                         <div class="text-end">

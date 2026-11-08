@@ -50,6 +50,11 @@ $rxVerified = $order['prescription_status'] === 'VERIFIED';
         <p>Placed on <?= e(nice_date($order['created_at'], true)) ?> &middot; Status: <span id="liveOrderStatusBadge" class="badge text-bg-<?= e(order_status_badge($currentStatus)) ?>"><?= e(order_status_label($currentStatus)) ?></span></p>
     </div>
     <div class="d-flex gap-2">
+        <?php if ($currentStatus === 'COMPLETED'): ?>
+            <a href="index.php?page=invoice&order_id=<?= (int)$order['id'] ?>" class="btn btn-success btn-sm" title="View official printable tax invoice">
+                <i class="bi bi-receipt me-1"></i>Sales Invoice
+            </a>
+        <?php endif; ?>
         <button id="liveOrderRefreshBtn" class="btn btn-outline-primary btn-sm" type="button" title="Check for live status updates">
             <i class="bi bi-arrow-clockwise me-1"></i>Check Status
         </button>
@@ -171,13 +176,14 @@ $rxVerified = $order['prescription_status'] === 'VERIFIED';
 
     <!-- Right Column: Status Operations, Prescription Inspection, & Customer Info -->
     <div class="col-lg-4">
-        <!-- Staff Status Transition Controller -->
+        <!-- Staff Status Operations Controller -->
         <?php if (is_staff_or_admin()): ?>
             <div class="card shadow-sm mb-4 border-primary">
-                <div class="card-header bg-primary text-white py-3">
+                <div class="card-header bg-primary text-white py-3 d-flex justify-content-between align-items-center">
                     <strong class="d-flex align-items-center">
-                        <i class="bi bi-arrow-repeat me-2"></i>Update Order Lifecycle
+                        <i class="bi bi-lightning-charge-fill me-2"></i>Order Actions &amp; Fulfillment
                     </strong>
+                    <span class="badge text-bg-light small"><?= e(order_status_label($currentStatus)) ?></span>
                 </div>
                 <div class="card-body">
                     <?php if (empty($allowedTransitions)): ?>
@@ -186,42 +192,101 @@ $rxVerified = $order['prescription_status'] === 'VERIFIED';
                             This order is in a terminal state (<strong><?= e($currentStatus) ?></strong>) and cannot undergo further status transitions.
                         </div>
                     <?php else: ?>
-                        <form action="actions.php" method="post">
-                            <input type="hidden" name="action" value="order_update_status">
-                            <?= csrf_field() ?>
-                            <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+                        <?php 
+                        $isBlockedByRx = ($rxRequired && !$rxVerified);
+                        ?>
 
-                            <div class="mb-3">
-                                <label for="st_new" class="form-label small fw-semibold">Next Stage *</label>
-                                <select name="new_status" id="st_new" class="form-select form-select-sm" required>
-                                    <option value="">Select Next Status</option>
-                                    <?php foreach ($allowedTransitions as $nextSt):
-                                        $isBlockedByRx = ($rxRequired && !$rxVerified && in_array($nextSt, ['CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'COMPLETED'], true));
-                                    ?>
-                                        <option value="<?= e($nextSt) ?>" <?= $isBlockedByRx ? 'disabled' : '' ?>>
-                                            <?= e(order_status_label($nextSt)) ?>
-                                            <?= $isBlockedByRx ? ' (Requires Prescription Approval)' : '' ?>
-                                        </option>
-                                    <?php endforeach; ?>
-                                </select>
+                        <?php if ($isBlockedByRx): ?>
+                            <div class="alert alert-warning small py-2 mb-3">
+                                <i class="bi bi-exclamation-triangle-fill me-1"></i>
+                                <strong>Prescription Gate:</strong> Pharmacist must inspect and approve the prescription below before confirming or completing this order.
                             </div>
+                        <?php endif; ?>
 
-                            <?php if ($rxRequired && !$rxVerified): ?>
-                                <div class="alert alert-warning small py-2 mb-3">
-                                    <i class="bi bi-exclamation-triangle me-1"></i>
-                                    <strong>Prescription Gate:</strong> You must approve the uploaded prescription below before confirming this order.
-                                </div>
+                        <!-- Quick Single-Click Actions -->
+                        <div class="d-grid gap-2 mb-3">
+                            <?php if (in_array('COMPLETED', $allowedTransitions, true)): ?>
+                                <form action="actions.php" method="post" class="m-0">
+                                    <input type="hidden" name="action" value="order_update_status">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+                                    <input type="hidden" name="new_status" value="COMPLETED">
+                                    <input type="hidden" name="remarks" value="Order verified, delivered, and completed via quick fulfillment">
+                                    <button type="submit" class="btn btn-success btn-sm w-100 fw-bold py-2" <?= $isBlockedByRx ? 'disabled title="Requires prescription approval"' : '' ?> onclick="return confirm('Fulfill and complete Order #<?= e($order['order_number']) ?>? This will generate the sales invoice and finalize payment.');">
+                                        <i class="bi bi-check-circle-fill me-1"></i>Deliver &amp; Complete Order
+                                    </button>
+                                </form>
                             <?php endif; ?>
 
-                            <div class="mb-3">
-                                <label for="st_remarks" class="form-label small fw-semibold">Transition Remarks</label>
-                                <textarea name="remarks" id="st_remarks" class="form-control form-control-sm" rows="2" placeholder="e.g. Items verified and packed in cold storage box"></textarea>
-                            </div>
+                            <?php if (in_array('CONFIRMED', $allowedTransitions, true)): ?>
+                                <form action="actions.php" method="post" class="m-0">
+                                    <input type="hidden" name="action" value="order_update_status">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+                                    <input type="hidden" name="new_status" value="CONFIRMED">
+                                    <input type="hidden" name="remarks" value="Order confirmed and queued for preparation">
+                                    <button type="submit" class="btn btn-outline-primary btn-sm w-100" <?= $isBlockedByRx ? 'disabled title="Requires prescription approval"' : '' ?> onclick="return confirm('Confirm Order #<?= e($order['order_number']) ?>?');">
+                                        <i class="bi bi-check2-circle me-1"></i>Confirm &amp; Prepare Order
+                                    </button>
+                                </form>
+                            <?php endif; ?>
 
-                            <button type="submit" class="btn btn-primary btn-sm w-100" onclick="return confirm('Advance order to the selected status?');">
-                                <i class="bi bi-check2-circle me-1"></i>Apply Status Transition
-                            </button>
-                        </form>
+                            <?php if (in_array('CANCELLED', $allowedTransitions, true)): ?>
+                                <form action="actions.php" method="post" class="m-0">
+                                    <input type="hidden" name="action" value="order_update_status">
+                                    <?= csrf_field() ?>
+                                    <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+                                    <input type="hidden" name="new_status" value="CANCELLED">
+                                    <input type="hidden" name="remarks" value="Cancelled by dispensary staff">
+                                    <button type="submit" class="btn btn-outline-danger btn-sm w-100" onclick="return confirm('Cancel Order #<?= e($order['order_number']) ?>? Reserved batch stock will be restored automatically.');">
+                                        <i class="bi bi-x-circle me-1"></i>Cancel Order
+                                    </button>
+                                </form>
+                            <?php endif; ?>
+                        </div>
+
+                        <!-- Expandable Custom Status Transition & Notes -->
+                        <div class="accordion" id="advStatusAccordion">
+                            <div class="accordion-item border-0">
+                                <h2 class="accordion-header">
+                                    <button class="accordion-button collapsed py-1 px-2 small bg-light text-secondary rounded" type="button" data-bs-toggle="collapse" data-bs-target="#collapseAdvStatus">
+                                        <i class="bi bi-sliders me-1"></i>Custom Status / Custom Remarks
+                                    </button>
+                                </h2>
+                                <div id="collapseAdvStatus" class="accordion-collapse collapse" data-bs-parent="#advStatusAccordion">
+                                    <div class="accordion-body px-0 pb-0 pt-2">
+                                        <form action="actions.php" method="post">
+                                            <input type="hidden" name="action" value="order_update_status">
+                                            <?= csrf_field() ?>
+                                            <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+
+                                            <div class="mb-2">
+                                                <label for="st_new" class="form-label small fw-semibold">Target Status</label>
+                                                <select name="new_status" id="st_new" class="form-select form-select-sm" required>
+                                                    <option value="">Select Status</option>
+                                                    <?php foreach ($allowedTransitions as $nextSt): 
+                                                        $blocked = ($rxRequired && !$rxVerified && in_array($nextSt, ['CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'COMPLETED'], true));
+                                                    ?>
+                                                        <option value="<?= e($nextSt) ?>" <?= $blocked ? 'disabled' : '' ?>>
+                                                            <?= e(order_status_label($nextSt)) ?><?= $blocked ? ' (Rx Required)' : '' ?>
+                                                        </option>
+                                                    <?php endforeach; ?>
+                                                </select>
+                                            </div>
+
+                                            <div class="mb-2">
+                                                <label for="st_remarks" class="form-label small fw-semibold">Custom Remarks</label>
+                                                <textarea name="remarks" id="st_remarks" class="form-control form-control-sm" rows="2" placeholder="e.g. Special packaging instructions"></textarea>
+                                            </div>
+
+                                            <button type="submit" class="btn btn-secondary btn-sm w-100">
+                                                Apply Transition
+                                            </button>
+                                        </form>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     <?php endif; ?>
                 </div>
             </div>
@@ -267,15 +332,22 @@ $rxVerified = $order['prescription_status'] === 'VERIFIED';
             </div>
             <div class="card-body">
                 <?php if ($prescription): ?>
-                    <div class="d-flex align-items-center gap-3 p-3 bg-light rounded border mb-3">
-                        <i class="bi bi-file-earmark-medical fs-2 text-danger"></i>
-                        <div class="flex-grow-1 text-truncate">
-                            <strong class="text-dark d-block text-truncate"><?= e($prescription['original_filename']) ?></strong>
-                            <span class="text-muted small"><?= round($prescription['file_size'] / 1024, 1) ?> KB &middot; <?= e($prescription['mime_type']) ?></span>
+                    <div class="p-3 bg-light rounded border mb-3">
+                        <div class="d-flex align-items-center gap-2 mb-2">
+                            <i class="bi bi-file-earmark-medical fs-2 text-danger"></i>
+                            <div class="flex-grow-1 text-truncate">
+                                <strong class="text-dark d-block text-truncate"><?= e($prescription['original_filename']) ?></strong>
+                                <span class="text-muted small"><?= round($prescription['file_size'] / 1024, 1) ?> KB &middot; <?= e($prescription['mime_type']) ?></span>
+                            </div>
                         </div>
-                        <a href="index.php?page=download_prescription&order_id=<?= (int)$order['id'] ?>" target="_blank" class="btn btn-sm btn-outline-primary" title="View / Download Secure File">
-                            <i class="bi bi-box-arrow-up-right me-1"></i>View
-                        </a>
+                        <div class="d-flex gap-2">
+                            <button type="button" class="btn btn-sm btn-primary flex-grow-1" data-bs-toggle="modal" data-bs-target="#rxPreviewModal">
+                                <i class="bi bi-eye me-1"></i>Inspect Inline
+                            </button>
+                            <a href="index.php?page=download_prescription&order_id=<?= (int)$order['id'] ?>" target="_blank" class="btn btn-sm btn-outline-secondary" title="Open in raw tab">
+                                <i class="bi bi-box-arrow-up-right"></i>
+                            </a>
+                        </div>
                     </div>
 
                     <?php if (!empty($prescription['review_notes'])): ?>
@@ -356,3 +428,61 @@ $rxVerified = $order['prescription_status'] === 'VERIFIED';
         </div>
     </div>
 </div>
+
+<?php if ($prescription): ?>
+<!-- Prescription Inline Inspection Modal -->
+<div class="modal fade" id="rxPreviewModal" tabindex="-1" aria-labelledby="rxPreviewModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content shadow">
+            <div class="modal-header bg-light">
+                <div>
+                    <h5 class="modal-title h6 mb-0" id="rxPreviewModalLabel">
+                        <i class="bi bi-file-earmark-medical text-danger me-2"></i>Doctor's Prescription Document
+                    </h5>
+                    <small class="text-muted"><?= e($prescription['original_filename']) ?> (<?= round($prescription['file_size'] / 1024, 1) ?> KB)</small>
+                </div>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-3 text-center bg-light">
+                <?php if (str_starts_with((string)$prescription['mime_type'], 'image/')): ?>
+                    <img src="index.php?page=download_prescription&order_id=<?= (int)$order['id'] ?>" class="img-fluid rounded shadow-sm border bg-white" alt="Doctor Prescription" style="max-height: 70vh;">
+                <?php elseif ($prescription['mime_type'] === 'application/pdf'): ?>
+                    <iframe src="index.php?page=download_prescription&order_id=<?= (int)$order['id'] ?>" style="width: 100%; height: 70vh; border: none;" class="rounded border bg-white"></iframe>
+                <?php else: ?>
+                    <div class="p-4 bg-white rounded border">
+                        <i class="bi bi-file-earmark fs-1 text-secondary mb-2 d-block"></i>
+                        <p class="mb-3">Preview unavailable for mime type <code><?= e($prescription['mime_type']) ?></code>.</p>
+                        <a href="index.php?page=download_prescription&order_id=<?= (int)$order['id'] ?>" target="_blank" class="btn btn-primary btn-sm">
+                            <i class="bi bi-download me-1"></i>Download Document
+                        </a>
+                    </div>
+                <?php endif; ?>
+            </div>
+            <?php if (is_staff_or_admin() && $order['order_status'] !== 'CANCELLED' && $order['order_status'] !== 'COMPLETED'): ?>
+                <div class="modal-footer bg-white d-flex justify-content-between align-items-center">
+                    <div class="text-secondary small">
+                        Status: <span class="badge text-bg-<?= e(prescription_status_badge($order['prescription_status'])) ?>"><?= e(prescription_status_label($order['prescription_status'])) ?></span>
+                    </div>
+                    <form action="actions.php" method="post" class="d-flex gap-2 m-0">
+                        <input type="hidden" name="action" value="prescription_review">
+                        <?= csrf_field() ?>
+                        <input type="hidden" name="order_id" value="<?= (int)$order['id'] ?>">
+                        <input type="hidden" name="review_notes" value="Verified and approved via inline inspector">
+                        <button type="submit" name="verification_status" value="APPROVED" class="btn btn-success btn-sm" onclick="return confirm('Approve this prescription?');">
+                            <i class="bi bi-check-circle me-1"></i>Approve Prescription
+                        </button>
+                        <button type="submit" name="verification_status" value="REJECTED" class="btn btn-outline-danger btn-sm" onclick="return confirm('Reject this prescription?');">
+                            <i class="bi bi-x-circle me-1"></i>Reject
+                        </button>
+                        <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                    </form>
+                </div>
+            <?php else: ?>
+                <div class="modal-footer bg-light py-2">
+                    <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                </div>
+            <?php endif; ?>
+        </div>
+    </div>
+</div>
+<?php endif; ?>

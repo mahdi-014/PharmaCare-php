@@ -238,8 +238,13 @@ $prescription = fetch_one('SELECT * FROM prescriptions WHERE order_id = ? LIMIT 
             </div>
         </div>
 
-        <a href="<?= e(url('catalog')) ?>" class="btn btn-outline-primary w-100">
-            <i class="bi bi-arrow-left me-1"></i>Back to Catalog
-        </a>
+        <div class="d-grid gap-2">
+            <a href="<?= e(url('order_detail', ['id' => $order['id']])) ?>" class="btn btn-success">
+                <i class="bi bi-clock-history me-1"></i>View &amp; Track Order Status
+            </a>
+            <a href="<?= e(url('catalog')) ?>" class="btn btn-outline-secondary">
+                <i class="bi bi-cart-plus me-1"></i>Continue Shopping
+            </a>
+        </div>
     </div>
 </div>

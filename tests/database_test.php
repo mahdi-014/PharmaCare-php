@@ -65,6 +65,16 @@ try {
     $orphanMedicines = (int)scalar("SELECT COUNT(*) FROM medicines WHERE category_id NOT IN (SELECT id FROM categories) OR supplier_id NOT IN (SELECT id FROM suppliers)");
     assert_test($orphanMedicines === 0, "No orphaned medicine records (foreign key constraints intact)");
 
+    // Verify Sales Channel Bridge schema columns
+    $salesCols = fetch_all("DESCRIBE sales");
+    $salesFields = array_column($salesCols, 'Field');
+    assert_test(in_array('channel', $salesFields, true), "Sales table contains 'channel' column");
+    assert_test(in_array('order_id', $salesFields, true), "Sales table contains 'order_id' column");
+
+    // Verify migration version recorded
+    $v3Migration = fetch_one("SELECT * FROM schema_migrations WHERE version = 'v3_sales_channel_bridge'");
+    assert_test($v3Migration !== null, "Schema migration 'v3_sales_channel_bridge' recorded");
+
     echo "\nAll $passed database integrity verification tests passed successfully!\n";
 } catch (Throwable $e) {
     fwrite(STDERR, "\n[FATAL ERROR] " . $e->getMessage() . "\n");

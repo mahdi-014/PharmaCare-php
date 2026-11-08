@@ -49,7 +49,7 @@ if (!user()) {
 } else {
     $pendingOrdersCount = 0;
     try {
-        $pendingOrdersCount = (int)scalar("SELECT COUNT(*) FROM orders WHERE order_status IN ('PENDING', 'CONFIRMED', 'PROCESSING')");
+        $pendingOrdersCount = (int)scalar("SELECT COUNT(*) FROM orders WHERE order_status IN ('PENDING', 'CONFIRMED')");
     } catch (Throwable $e) {}
     $ordersBadge = $pendingOrdersCount > 0 ? ' (' . $pendingOrdersCount . ')' : '';
 
@@ -59,6 +59,7 @@ if (!user()) {
         ['medicines','capsule','Medicines','medicines'],
         ['sale_form','cart-plus-fill','New Sale','sale_form'],
         ['sales','receipt','Sales History','sales'],
+        ['catalog','shop','Storefront View','catalog'],
     ];
     if (is_admin()) {
         $links[] = ['section', '', 'Administration', ''];

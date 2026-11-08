@@ -65,8 +65,13 @@ CREATE TABLE IF NOT EXISTS sales (
  discount DECIMAL(12,2) NOT NULL DEFAULT 0,
  total_amount DECIMAL(12,2) NOT NULL,
  sold_by_id BIGINT UNSIGNED NOT NULL,
+ channel VARCHAR(20) NOT NULL DEFAULT 'POS',
+ order_id BIGINT UNSIGNED NULL,
  CONSTRAINT fk_sale_user FOREIGN KEY(sold_by_id) REFERENCES app_users(id),
- INDEX idx_sale_date (sale_date)
+ CONSTRAINT fk_sale_order FOREIGN KEY(order_id) REFERENCES orders(id) ON DELETE SET NULL,
+ INDEX idx_sale_date (sale_date),
+ INDEX idx_sale_channel (channel),
+ INDEX idx_sale_order (order_id)
 ) ENGINE=InnoDB;
 
 CREATE TABLE IF NOT EXISTS sale_items (

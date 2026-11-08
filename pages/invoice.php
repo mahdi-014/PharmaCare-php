@@ -7,7 +7,17 @@
 declare(strict_types=1);
 
 $id = (int)($_GET['id'] ?? 0);
-$sale = $id ? fetch_one('SELECT s.*, u.full_name AS sold_by_name, u.username AS sold_by_username FROM sales s JOIN app_users u ON u.id = s.sold_by_id WHERE s.id = ?', [$id]) : null;
+$orderId = (int)($_GET['order_id'] ?? 0);
+
+$sale = null;
+if ($id) {
+    $sale = fetch_one('SELECT s.*, u.full_name AS sold_by_name, u.username AS sold_by_username FROM sales s JOIN app_users u ON u.id = s.sold_by_id WHERE s.id = ?', [$id]);
+} elseif ($orderId) {
+    $sale = fetch_one('SELECT s.*, u.full_name AS sold_by_name, u.username AS sold_by_username FROM sales s JOIN app_users u ON u.id = s.sold_by_id WHERE s.order_id = ?', [$orderId]);
+    if ($sale) {
+        $id = (int)$sale['id'];
+    }
+}
 
 if (!$sale) {
     echo '<div class="alert alert-danger">Invoice not found.</div>';
@@ -47,6 +57,13 @@ $items = fetch_all('SELECT si.*, m.name AS medicine_name, m.generic_name, m.batc
             <div class="invoice-title">INVOICE</div>
             <strong><?= e($sale['invoice_number']) ?></strong>
             <div class="small text-secondary"><?= e(nice_date($sale['sale_date'], true)) ?></div>
+            <div class="mt-1">
+                <?php if (($sale['channel'] ?? 'POS') === 'ONLINE'): ?>
+                    <span class="badge text-bg-primary">Online Order</span>
+                <?php else: ?>
+                    <span class="badge text-bg-secondary">Counter POS</span>
+                <?php endif; ?>
+            </div>
         </div>
     </div>
 

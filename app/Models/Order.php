@@ -280,4 +280,15 @@ class Order
         $orderStmt = $pdo->prepare('UPDATE orders SET prescription_status = ? WHERE id = ?');
         $orderStmt->execute([$orderPrescriptionStatus, $orderId]);
     }
+
+    /**
+     * Retrieve linked sale ID if this order has been bridged upon completion.
+     */
+    public static function getLinkedSaleId(PDO $pdo, int $orderId): ?int
+    {
+        $stmt = $pdo->prepare('SELECT id FROM sales WHERE order_id = ? LIMIT 1');
+        $stmt->execute([$orderId]);
+        $val = $stmt->fetchColumn();
+        return $val !== false ? (int)$val : null;
+    }
 }

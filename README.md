@@ -3,7 +3,7 @@
 [![PHP 8.3](https://img.shields.io/badge/PHP-8.3%2B-777BB4?style=flat&logo=php&logoColor=white)](https://www.php.net/)
 [![MariaDB 10.11](https://img.shields.io/badge/MariaDB-10.11%2B-003545?style=flat&logo=mariadb&logoColor=white)](https://mariadb.org/)
 [![Bootstrap 5.3](https://img.shields.io/badge/Bootstrap-5.3.3-7952B3?style=flat&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
-[![Tests Passing](https://img.shields.io/badge/Tests-319%20Passing-brightgreen?style=flat)](#automated-testing--verification-suites)
+[![Tests Passing](https://img.shields.io/badge/Tests-334%20Passing-brightgreen?style=flat)](#automated-testing--verification-suites)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Academic Course Project:** CIS324 Web Engineering Semester Project (Topic 13: Pharmacy Management System)  
@@ -139,7 +139,7 @@ PharmaCare-PHP/
 │   │   └── Prescription.php           # Prescription file metadata & review audit
 │   └── Services/              # Domain Business Logic & Concurrency Control
 │       ├── InventoryService.php       # Row-level locking (FOR UPDATE), FEFO allocation
-│       └── OrderService.php           # 7-state order lifecycle state machine & gating
+│       └── OrderService.php           # Simplified lifecycle state machine & sales ledger bridge
 │
 ├── assets/                    # Static Client-Side Assets
 │   ├── css/
@@ -190,7 +190,7 @@ PharmaCare-PHP/
 ├── uploads/prescriptions/     # Protected prescription document storage
 │   └── .htaccess              # Require all denied (blocks unauthorized HTTP downloads)
 │
-└── tests/                     # 9 Comprehensive Automated Test Suites (319 Assertions)
+└── tests/                     # 9 Comprehensive Automated Test Suites (334 Assertions)
     ├── smoke.php              # Unit tests for status engine, validators & URL routing
     ├── database_test.php      # Live database connectivity, foreign keys & seed data
     ├── auth_test.php          # Customer registration, Bcrypt, role routing & RBAC
@@ -248,7 +248,7 @@ The relational schema comprises **11 InnoDB tables** enforcing referential integ
 2. **`categories`**: Pharmacological classifications (Antibiotic, Analgesic, etc.) with `RESTRICT` cascade protection.
 3. **`suppliers`**: Pharmaceutical manufacturers & distribution contacts with `RESTRICT` cascade protection.
 4. **`medicines`**: 120 inventory batches storing pricing, current stock, threshold, manufacturing/expiry dates, formulation type, and prescription flags.
-5. **`sales`**: Point-of-sale invoice headers with invoice numbers (`INV-YYYYMMDDHHMMSS-XXXXXX`), financial totals, and seller foreign key reference (`sold_by_id`).
+5. **`sales`**: Core sales transactions supporting physical POS and online channels (`channel VARCHAR(20) DEFAULT 'POS'`), linked to online orders via `order_id` foreign key, invoice numbers (`INV-ORD-...` or `INV-YYYYMMDDHHMMSS-...`), financial totals, and seller foreign key reference (`sold_by_id`).
 6. **`sale_items`**: Line items linked to sales and medicines with unit price and line total.
 7. **`orders`**: Online customer order headers (`ORD-YYYYMMDD-XXXXXX`), shipping address, totals, payment method, order status, and prescription flag.
 8. **`order_items`**: Line items linked to online orders storing point-in-time snapshots of medicine name and batch number.
@@ -277,9 +277,12 @@ The relational schema comprises **11 InnoDB tables** enforcing referential integ
 - Enforces First Expiry, First Out (FEFO) stock selection when batches are unpinned.
 - Mandatory prescription upload validation for orders containing prescription-only drugs.
 
-### 4. Staff Order Fulfillment Queue & State Machine
+### 4. Staff Order Fulfillment Queue, State Machine & Sales Sync
 - Restricted to `STAFF` and `ADMIN` roles.
-- Multi-parameter filter bar: Order status (`PENDING`, `CONFIRMED`, `PROCESSING`, `READY`, `DISPATCHED`, `COMPLETED`, `CANCELLED`), payment status (`UNPAID`, `PAID`), and keyword search.
+- **Streamlined Order Lifecycle:** Simplified practical flow (`PENDING` → `CONFIRMED` → `COMPLETED` / `CANCELLED`), while preserving legacy multi-step paths for backwards compatibility.
+- **Single-Click Fast-Track Fulfillment:** Staff can mark an order "Delivered & Complete" in one click directly from the queue or order detail page.
+- **Inline Prescription Preview & Review Modal:** Seamless inline modal view supporting image zooming, PDF iframe rendering, and one-click pharmacist approval/rejection without navigating away.
+- **Automated Sales Channel Bridge:** Marking an online order `COMPLETED` idempotently synchronizes the transaction into the core `sales` ledger (`channel = 'ONLINE'`, `order_id = $order_id`) and creates itemized `sale_items` records with zero double-deduction of stock.
 - **Prescription Verification Gate:** Orders requiring prescriptions cannot leave `PENDING` or `CONFIRMED` until an authorized pharmacist reviews and approves the prescription.
 - **Idempotent Cancellation:** When an active order is cancelled, inventory is safely locked and restored to stock, while terminal orders (`COMPLETED` or `CANCELLED`) are protected against double-restoration.
 
@@ -305,7 +308,7 @@ PharmaCare implements comprehensive **Defense-in-Depth** across all 7 OSI / appl
 
 ## Automated Testing & Verification Suites
 
-PharmaCare features a comprehensive test harness comprising **9 standalone automated test suites** verifying 319 assertions across unit logic, database integrity, RBAC firewalls, concurrency, and security threats.
+PharmaCare features a comprehensive test harness comprising **9 standalone automated test suites** verifying 334 assertions across unit logic, database integrity, RBAC firewalls, concurrency, and security threats.
 
 ### Running All Test Suites
 Execute the following commands from the repository root:
@@ -322,20 +325,22 @@ php tests/mvc_test.php
 php tests/security_test.php
 ```
 
+*(Alternatively, run `tests\run_tests.bat` on Windows to execute all 9 suites sequentially).*
+
 ### Test Suite Summary
 
 | # | Test Suite Script | Assertions | Focus Areas Verified | Status |
 | :-: | :--- | :-: | :--- | :-: |
 | 1 | `tests/smoke.php` | 16 | Inventory status priority hierarchy, price formatting, zero discount validation, formulation types. | **16/16 PASSED** |
-| 2 | `tests/database_test.php` | 20 | Live MariaDB connectivity, 11 system tables, seeded Admin/Staff/Customer accounts, 120 inventory batches, 0 orphaned FKs. | **20/20 PASSED** |
+| 2 | `tests/database_test.php` | 23 | Live MariaDB connectivity, 11 system tables, seeded Admin/Staff/Customer accounts, 120 inventory batches, sales channel bridge columns & migrations. | **23/23 PASSED** |
 | 3 | `tests/auth_test.php` | 28 | Customer registration, Bcrypt hashing, unique username/email constraints, role routing, RBAC boundary enforcement, IDOR prevention. | **28/28 PASSED** |
 | 4 | `tests/cart_test.php` | 39 | In-memory session cart mechanics, unit/line counts, total calculation, max-stock clamping, prescription requirement flags. | **39/39 PASSED** |
 | 5 | `tests/order_test.php` | 28 | Atomic checkout, shared InventoryService, row-locking (`FOR UPDATE`), FEFO batch allocation, transactional rollback on out-of-stock. | **28/28 PASSED** |
-| 6 | `tests/order_lifecycle_test.php`| 31 | 7-state order lifecycle state machine, prescription verification gate, customer order cancellation, idempotent stock restoration. | **31/31 PASSED** |
+| 6 | `tests/order_lifecycle_test.php`| 43 | Simplified order state machine, single-click fast-track completion, sales channel synchronization bridge, zero double-deduction of stock, prescription gating, idempotent cancellations. | **43/43 PASSED** |
 | 7 | `tests/api_test.php` | 53 | RESTful JSON APIs (`api/*`), HTTP status codes (200, 400, 401, 403, 404, 405), debounced search, session cart endpoints, CSRF headers. | **53/53 PASSED** |
 | 8 | `tests/mvc_test.php` | 53 | PSR-4 autoloader, Layered MVC Controllers, Active Record Models, Domain Services, method signatures and separation of concerns. | **53/53 PASSED** |
 | 9 | `tests/security_test.php` | 51 | SQLi payloads, XSS neutralization via `e()`, HTTP security headers, CSRF form & header tokens, RBAC privilege escalation, 30m idle session timeout, file upload allowlists & directory traversal. | **51/51 PASSED** |
-| **TOTAL** | **9 Suites** | **319** | **Complete Application Verification** | **319/319 PASSED (100%)** |
+| **TOTAL** | **9 Suites** | **334** | **Complete Application Verification** | **334/334 PASSED (100%)** |
 
 ---
 
@@ -346,23 +351,24 @@ Evaluators and students can verify all course project requirements using the ste
 1. **Role-Based Access Control (RBAC):**
    - Log in with `customer` / `customer123`. Verify the navigation shows "Medicine Storefront", "My Cart", and "My Orders". Attempt to access `index.php?page=dashboard` or `?page=users`; confirm immediate HTTP 403 Forbidden.
    - Log out and log in with `staff` / `staff123`. Verify the "Orders Queue" and "Point of Sale" are accessible, but user account administration (`?page=users`) is blocked (HTTP 403).
-   - Log in with `admin` / `admin123`. Confirm full administrative access to all 11 modules.
+   - Log in with `admin` / `admin123`. Confirm full administrative access to all 11 modules, plus the "Storefront View" link to browse customer medicine catalog directly.
 2. **Debounced Live Catalog Search:**
    - As customer, open **Medicine Storefront**. Type `paracetamol` in the search bar. Observe the live 300ms debounced search updating the medicine card grid without reloading the page.
 3. **Shopping Cart & Stock Clamping:**
    - Select a medicine with limited stock (e.g. 15 units). Attempt to add 50 units. Verify the cart clamps to available stock and notifies the user.
-4. **Prescription Verification Workflow:**
+4. **Prescription Verification & Fast-Track Order Fulfillment:**
    - Add a prescription-required medicine (e.g., Montair 10) to the cart.
    - Proceed to **Checkout**. Confirm that checkout requires uploading a prescription document (`.jpg`, `.png`, or `.pdf`). Complete the order.
    - Log in as `staff`. Open **Orders Queue**. Verify the order shows a warning badge **Needs Review**.
-   - Attempt to advance the order to `PROCESSING`; confirm the system prevents the transition until the prescription is approved.
-   - Click **Review Prescription**, inspect the uploaded document, and click **Approve Prescription**.
-   - Advance the order status through `CONFIRMED` → `PROCESSING` → `READY` → `DISPATCHED` → `COMPLETED`.
+   - Click **Review Rx** to open the interactive **Inline Prescription Preview Modal** (supporting image zooming and PDF rendering).
+   - Click **Approve Prescription** directly inside the modal.
+   - Advance the order with the single-click **Deliver & Complete** action directly from the queue or detail view.
+   - Confirm that the completed online order is automatically bridged into the core **Sales Ledger** (`index.php?page=sales`) with a teal `Online` badge and linked printable invoice (`index.php?page=invoice&order_id=...`).
 5. **Real-Time Live Order Tracking:**
    - In another browser window, open the customer's **Track Order** page.
    - Observe the step-progress timeline automatically update in real-time as staff change order states, without manual browser refresh.
-6. **Concurrent Stock Protection & FEFO:**
-   - Inspect medicine inventory before and after an order. Verify that stock was deducted from the earliest-expiring batch first (FEFO).
+6. **Concurrent Stock Protection & Sales Parity:**
+   - Inspect medicine inventory before and after an order. Verify that stock was deducted from the earliest-expiring batch first (FEFO) during checkout, and **zero double-deduction** occurred when the order bridged to sales on completion.
    - Cancel a pending order and verify that stock is safely restored to inventory.
 7. **Session Inactivity Timeout:**
    - Log into the application. Leave the session inactive for 30 minutes (or test via `tests/security_test.php`). Observe that the session is invalidated, session cookies are purged, and the user is redirected to `index.php?page=login&timeout=1` with an informative session expiry notice.

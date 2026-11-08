@@ -100,6 +100,7 @@ erDiagram
     categories ||--o{ medicines : "classifies (1:N)"
     suppliers ||--o{ medicines : "supplies (1:N)"
     app_users ||--o{ sales : "processes POS (1:N)"
+    orders ||--o| sales : "bridges on completion (1:1)"
     sales ||--|{ sale_items : "contains (1:N)"
     medicines ||--o{ sale_items : "sold in (1:N)"
     app_users ||--o{ orders : "places (1:N)"
@@ -172,6 +173,8 @@ erDiagram
         decimal total_amount
         int sold_by_id FK
         datetime sale_date
+        varchar channel
+        int order_id FK
     }
 
     sale_items {
@@ -240,7 +243,8 @@ erDiagram
 
     schema_migrations {
         varchar version PK
-        datetime executed_at
+        datetime applied_at
+        varchar description
     }
 ```
 
@@ -252,13 +256,13 @@ erDiagram
 | **`categories`** | InnoDB | 5 | Pharmacological taxonomy (e.g., Antibiotic, Analgesic). Unique index on `name`. | Protected by `ON DELETE RESTRICT` from child medicines. |
 | **`suppliers`** | InnoDB | 3 | Pharmaceutical distributors & manufacturers. | Protected by `ON DELETE RESTRICT` from child medicines. |
 | **`medicines`** | InnoDB | 120 batches | Inventory batches with expiry, stock level, pricing, and prescription flags. Unique index on `batch_number`. | FK to `categories(id)` (`RESTRICT`), FK to `suppliers(id)` (`RESTRICT`). |
-| **`sales`** | InnoDB | 0+ | Physical Point-of-Sale invoice headers with financial totals. Unique index on `invoice_number`. | FK to `app_users(id)` as `sold_by_id` (`RESTRICT`). |
-| **`sale_items`** | InnoDB | 0+ | Line items associated with POS sales. | FK to `sales(id)` (`CASCADE`), FK to `medicines(id)` (`RESTRICT`). |
+| **`sales`** | InnoDB | 0+ | Unified sales ledger supporting physical POS and completed online orders (`channel` column). Unique index on `invoice_number`. | FK to `app_users(id)` as `sold_by_id` (`RESTRICT`), FK to `orders(id)` as `order_id` (`RESTRICT` on delete, null for POS). |
+| **`sale_items`** | InnoDB | 0+ | Line items associated with sales and dispensed medicines. | FK to `sales(id)` (`CASCADE`), FK to `medicines(id)` (`RESTRICT`). |
 | **`orders`** | InnoDB | 0+ | Online customer order headers storing status, payment, shipping, and total amounts. Unique index on `order_number`. | FK to `app_users(id)` as `customer_id` (`RESTRICT`). |
 | **`order_items`** | InnoDB | 0+ | Line items associated with online orders, capturing point-in-time snapshot of medicine name and batch number. | FK to `orders(id)` (`CASCADE`), FK to `medicines(id)` (`RESTRICT`). |
 | **`order_status_history`** | InnoDB | 0+ | Immutable append-only audit trail capturing all lifecycle status transitions with actor ID and comments. | FK to `orders(id)` (`CASCADE`), FK to `app_users(id)` as `changed_by_id` (`RESTRICT`). |
 | **`prescriptions`** | InnoDB | 0+ | Uploaded medical prescription files, verification state, and reviewing pharmacist ID. | FK to `orders(id)` (`CASCADE`), FK to `app_users(id)` as `customer_id` (`RESTRICT`), FK to `app_users(id)` as `reviewed_by_id` (`SET NULL`). |
-| **`schema_migrations`** | InnoDB | 1 | Database version tracking table preventing duplicate migration executions. Primary key on `version`. | None. |
+| **`schema_migrations`** | InnoDB | 3 | Database version tracking table (`v1_baseline`, `v2_online_ordering`, `v3_sales_channel_bridge`). Primary key on `version`. | None. |
 
 ---
 
@@ -323,6 +327,13 @@ When an order in an active state (`PENDING`, `CONFIRMED`, `PROCESSING`, `READY`)
 4. Inventory quantities are incremented back: `UPDATE medicines SET quantity = quantity + :qty WHERE id = :id`.
 5. Order status is transitioned to `CANCELLED`, and an immutable entry is logged in `order_status_history`.
 6. Subsequent cancellation attempts throw a `DomainException` preventing double-restoration of stock.
+
+### Sales Channel Synchronization Bridge & Stock Parity Invariant
+
+To resolve data silos between customer online fulfillment and core business accounting, completed online orders are bridged into the central `sales` ledger:
+1. **Schema Expansion (`v3_sales_channel_bridge.sql`):** The `sales` table incorporates `channel VARCHAR(20) DEFAULT 'POS'` and `order_id BIGINT UNSIGNED NULL`, indexed with foreign key constraint `fk_sale_order` referencing `orders(id)`.
+2. **Automated Order Bridging:** Upon transitioning an order to `COMPLETED` (via `OrderService::updateOrderStatus()`), the system checks for an existing linked sale. If not yet synchronized, it atomically generates an invoice (`INV-ORD-YYYYMMDD-XXXXXX`), inserts into `sales` (`channel = 'ONLINE'`, `order_id = $orderId`), and copies line items into `sale_items`.
+3. **Zero Double-Deduction Invariant:** Online orders deduct inventory stock at checkout time via `InventoryService::deduct_batch_stock()`. Therefore, when the sales channel bridge creates `sales` and `sale_items` records upon order completion, it strictly **bypasses stock deduction**, ensuring mathematical stock parity is preserved across both channels.
 
 ---
 
@@ -455,18 +466,18 @@ PharmaCare implements **Defense-in-Depth** across every tier of the application:
 
 ## 6. Verification & Automated Test Coverage
 
-The system is continuously verified through **9 automated test suites** executing 319 assertions against the live application runtime:
+The system is continuously verified through **9 automated test suites** executing 334 assertions against the live application runtime:
 
 ```text
 Suite 1: tests/smoke.php (16 tests)           --> Inventory status engine, price validators & DDL schema.
-Suite 2: tests/database_test.php (20 tests)   --> 11 relational tables, foreign key constraints & seed integrity.
+Suite 2: tests/database_test.php (23 tests)   --> 11 relational tables, foreign key constraints & sales bridge integrity.
 Suite 3: tests/auth_test.php (28 tests)       --> Customer registration, Bcrypt hashing, RBAC routing & IDOR guards.
 Suite 4: tests/cart_test.php (39 tests)       --> Session cart calculations, max-stock clamping & Rx flags.
 Suite 5: tests/order_test.php (28 tests)      --> Atomic checkout, FEFO allocation & row-level locking.
-Suite 6: tests/order_lifecycle_test.php (31)  --> State machine transitions, Rx verification gate & cancellation.
+Suite 6: tests/order_lifecycle_test.php (43)  --> State machine transitions, fast-track completion, sales bridge sync & stock parity.
 Suite 7: tests/api_test.php (53 tests)        --> JSON REST APIs, debounced search, CSRF headers & HTTP codes.
 Suite 8: tests/mvc_test.php (53 tests)        --> PSR-4 autoloader, Controllers, Models, and Domain Services.
 Suite 9: tests/security_test.php (51 tests)   --> SQLi, XSS, CSRF, IDOR, session timeout & path traversal.
 -------------------------------------------------------------------------------------------------------------
-TOTAL: 319 / 319 Assertions Passing (100% Pass Rate)
+TOTAL: 334 / 334 Assertions Passing (100% Pass Rate)
 ```

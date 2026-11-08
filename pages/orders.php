@@ -225,10 +225,37 @@ $orders = fetch_all($sql, $params);
                                 <?= e(order_status_label($o['order_status'])) ?>
                             </span>
                         </td>
-                        <td class="text-end">
-                            <a href="<?= e(url('order_detail', ['id' => $o['id']])) ?>" class="btn btn-sm btn-outline-primary">
-                                <i class="bi bi-eye me-1"></i>Manage
-                            </a>
+                        <td class="text-end text-nowrap">
+                            <div class="d-inline-flex gap-1 align-items-center">
+                                <?php 
+                                $isRxPending = ((int)$o['prescription_required'] === 1 && $o['prescription_status'] !== 'VERIFIED');
+                                $isActive = in_array($o['order_status'], ['PENDING', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED'], true);
+                                ?>
+                                <?php if ($isActive && $isRxPending): ?>
+                                    <a href="<?= e(url('order_detail', ['id' => $o['id']])) ?>" class="btn btn-sm btn-warning text-nowrap" title="Prescription verification required">
+                                        <i class="bi bi-prescription2 me-1"></i>Review Rx
+                                    </a>
+                                <?php elseif ($isActive && !$isRxPending): ?>
+                                    <form action="actions.php" method="post" class="d-inline m-0">
+                                        <input type="hidden" name="action" value="order_update_status">
+                                        <?= csrf_field() ?>
+                                        <input type="hidden" name="order_id" value="<?= (int)$o['id'] ?>">
+                                        <input type="hidden" name="new_status" value="COMPLETED">
+                                        <input type="hidden" name="remarks" value="Direct fulfillment via orders queue">
+                                        <button type="submit" class="btn btn-sm btn-success text-nowrap" onclick="return confirm('Fulfill and complete Order #<?= e($o['order_number']) ?>? Generates sales invoice.');" title="Fast-Track Complete">
+                                            <i class="bi bi-check-circle-fill me-1"></i>Complete
+                                        </button>
+                                    </form>
+                                <?php elseif ($o['order_status'] === 'COMPLETED'): ?>
+                                    <a href="index.php?page=invoice&order_id=<?= (int)$o['id'] ?>" class="btn btn-sm btn-outline-success text-nowrap" title="Print Sales Invoice">
+                                        <i class="bi bi-receipt me-1"></i>Invoice
+                                    </a>
+                                <?php endif; ?>
+
+                                <a href="<?= e(url('order_detail', ['id' => $o['id']])) ?>" class="btn btn-sm btn-outline-secondary" title="View Order Details">
+                                    <i class="bi bi-eye"></i>
+                                </a>
+                            </div>
                         </td>
                     </tr>
                 <?php endforeach; ?>
