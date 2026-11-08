@@ -18,6 +18,47 @@ function csrf_verify(): void {
         exit('Invalid session token. Go back, refresh the form and try again.');
     }
 }
+
+function api_json_response(bool $success, string $message, mixed $data = null, int $statusCode = 200): never {
+    while (ob_get_level()) {
+        ob_end_clean();
+    }
+    http_response_code($statusCode);
+    header('Content-Type: application/json; charset=utf-8');
+    header('X-Content-Type-Options: nosniff');
+    echo json_encode([
+        'success' => $success,
+        'message' => $message,
+        'data' => $data
+    ], JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+function api_csrf_verify(): void {
+    $token = $_SERVER['HTTP_X_CSRF_TOKEN'] ?? $_POST['_csrf'] ?? null;
+    if (!$token) {
+        $body = file_get_contents('php://input');
+        if (!empty($body)) {
+            $parsed = json_decode($body, true);
+            if (is_array($parsed) && isset($parsed['_csrf'])) {
+                $token = (string)$parsed['_csrf'];
+            }
+        }
+    }
+    if (!$token || !hash_equals(csrf(), (string)$token)) {
+        api_json_response(false, 'Invalid or missing CSRF token.', null, 403);
+    }
+}
+
+function api_get_json_input(): array {
+    $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
+    if (str_contains($contentType, 'application/json')) {
+        $body = file_get_contents('php://input');
+        $data = json_decode($body, true);
+        return is_array($data) ? $data : [];
+    }
+    return $_POST;
+}
 function user(): ?array { return $_SESSION['user'] ?? null; }
 function is_admin(): bool { return (user()['role'] ?? '') === 'ADMIN'; }
 function is_staff(): bool { return (user()['role'] ?? '') === 'STAFF'; }

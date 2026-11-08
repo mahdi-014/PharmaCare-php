@@ -39,7 +39,7 @@ $medicines = fetch_all($sql, $params);
 <!-- Search & Category Filter Controls -->
 <div class="card mb-4 shadow-sm">
     <div class="card-body">
-        <form method="get" action="index.php" class="row g-3 align-items-end">
+        <form id="catalogSearchForm" method="get" action="index.php" class="row g-3 align-items-end">
             <input type="hidden" name="page" value="catalog">
 
             <div class="col-lg-6">
@@ -76,24 +76,22 @@ $medicines = fetch_all($sql, $params);
 
 <!-- Results Header -->
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <div class="text-secondary small fw-semibold">
+    <div id="catalogResultCount" class="text-secondary small fw-semibold">
         SHOWING <?= count($medicines) ?> AVAILABLE MEDICINE(S)
     </div>
-    <?php if (is_customer() && cart_get_count() > 0): ?>
-        <a href="<?= e(url('cart')) ?>" class="btn btn-sm btn-outline-success">
-            <i class="bi bi-cart3 me-1"></i>View Cart (<?= cart_get_count() ?>)
-        </a>
-    <?php endif; ?>
+    <a id="catalogViewCartBtn" href="<?= e(url('cart')) ?>" class="btn btn-sm btn-outline-success <?= (is_customer() && cart_get_count() > 0) ? '' : 'd-none' ?>">
+        <i class="bi bi-cart3 me-1"></i>View Cart (<span id="catalogCartBtnCount"><?= cart_get_count() ?></span>)
+    </a>
 </div>
 
 <!-- Medicine Cards Grid -->
-<div class="row g-3">
+<div id="catalogMedicineGrid" class="row g-3">
     <?php foreach ($medicines as $m):
         $status = medicine_status($m);
         $inCart = (int)($_SESSION['cart'][$m['id']]['quantity'] ?? 0);
         $maxStock = (int)$m['quantity'];
     ?>
-        <div class="col-md-6 col-xl-4">
+        <div class="col-md-6 col-xl-4 medicine-card-col" data-medicine-id="<?= (int)$m['id'] ?>">
             <div class="card h-100 shadow-sm border">
                 <div class="card-body d-flex flex-column">
                     <div class="d-flex justify-content-between align-items-start mb-2">
@@ -148,7 +146,7 @@ $medicines = fetch_all($sql, $params);
                                 <i class="bi bi-box-arrow-in-right me-1"></i>Sign In to Order
                             </a>
                         <?php elseif (is_customer()): ?>
-                            <form action="actions.php" method="post" class="d-flex align-items-center gap-2">
+                            <form action="actions.php" method="post" class="d-flex align-items-center gap-2 ajax-cart-form" data-medicine-id="<?= (int)$m['id'] ?>">
                                 <input type="hidden" name="action" value="cart_add">
                                 <?= csrf_field() ?>
                                 <input type="hidden" name="medicine_id" value="<?= (int)$m['id'] ?>">
@@ -156,21 +154,18 @@ $medicines = fetch_all($sql, $params);
 
                                 <div class="input-group input-group-sm" style="max-width: 105px;">
                                     <span class="input-group-text bg-light text-secondary">Qty</span>
-                                    <input type="number" name="quantity" class="form-control text-center" min="1" max="<?= $maxStock ?>" value="1" <?= $inCart >= $maxStock ? 'disabled' : '' ?>>
+                                    <input type="number" name="quantity" class="form-control text-center cart-qty-input" min="1" max="<?= $maxStock ?>" value="1" <?= $inCart >= $maxStock ? 'disabled' : '' ?>>
                                 </div>
 
-                                <button type="submit" class="btn btn-sm btn-success flex-grow-1" <?= $inCart >= $maxStock ? 'disabled' : '' ?>>
-                                    <i class="bi bi-cart-plus me-1"></i><?= $inCart > 0 ? 'Add More' : 'Add to Cart' ?>
+                                <button type="submit" class="btn btn-sm btn-success flex-grow-1 cart-submit-btn" <?= $inCart >= $maxStock ? 'disabled' : '' ?>>
+                                    <i class="bi bi-cart-plus me-1"></i><span class="btn-label"><?= $inCart > 0 ? 'Add More' : 'Add to Cart' ?></span>
                                 </button>
                             </form>
-                            <?php if ($inCart > 0): ?>
-                                <div class="mt-2 text-center">
-                                    <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 11px;">
-                                        <i class="bi bi-cart-check me-1"></i><?= $inCart ?> in <a href="<?= e(url('cart')) ?>" class="text-primary text-decoration-underline">cart</a>
-                                        <?= $inCart >= $maxStock ? '(Max available)' : '' ?>
-                                    </span>
-                                </div>
-                            <?php endif; ?>
+                            <div class="mt-2 text-center in-cart-status-wrap <?= $inCart > 0 ? '' : 'd-none' ?>">
+                                <span class="badge text-bg-primary-subtle text-primary border border-primary-subtle" style="font-size: 11px;">
+                                    <i class="bi bi-cart-check me-1"></i><span class="in-cart-number"><?= $inCart ?></span> in <a href="<?= e(url('cart')) ?>" class="text-primary text-decoration-underline">cart</a> <span class="max-stock-indicator"><?= $inCart >= $maxStock ? '(Max available)' : '' ?></span>
+                                </span>
+                            </div>
                         <?php else: ?>
                             <div class="text-center py-1">
                                 <span class="badge text-bg-secondary-subtle text-secondary small">
@@ -185,7 +180,7 @@ $medicines = fetch_all($sql, $params);
     <?php endforeach; ?>
 
     <?php if (!$medicines): ?>
-        <div class="col-12">
+        <div class="col-12" id="catalogEmptyState">
             <div class="card">
                 <div class="empty-state py-5 text-center">
                     <i class="bi bi-search fs-1 text-secondary mb-2"></i>
@@ -198,4 +193,17 @@ $medicines = fetch_all($sql, $params);
             </div>
         </div>
     <?php endif; ?>
+</div>
+
+<!-- Live Toast Notification Container -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" style="z-index: 1090;">
+    <div id="catalogToast" class="toast align-items-center text-bg-success border-0 shadow" role="alert" aria-live="assertive" aria-atomic="true">
+        <div class="d-flex">
+            <div class="toast-body d-flex align-items-center gap-2">
+                <i class="bi bi-check-circle-fill fs-5" id="catalogToastIcon"></i>
+                <span id="catalogToastMessage">Item added to cart</span>
+            </div>
+            <button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button>
+        </div>
+    </div>
 </div>

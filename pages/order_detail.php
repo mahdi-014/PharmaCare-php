@@ -65,12 +65,15 @@ $rxRequired = (int)$order['prescription_required'] === 1;
 $rxVerified = $order['prescription_status'] === 'VERIFIED';
 ?>
 
-<div class="page-intro mb-4 d-flex justify-content-between align-items-center">
+<div class="page-intro mb-4 d-flex justify-content-between align-items-center" id="orderTrackerMetadata" data-order-id="<?= (int)$order['id'] ?>" data-terminal="<?= in_array($currentStatus, ['COMPLETED', 'CANCELLED'], true) ? '1' : '0' ?>" data-status="<?= e($currentStatus) ?>">
     <div>
         <h2>Order <?= e($order['order_number']) ?></h2>
-        <p>Placed on <?= e(nice_date($order['created_at'], true)) ?> &middot; Status: <span class="badge text-bg-<?= e(order_status_badge($currentStatus)) ?>"><?= e(order_status_label($currentStatus)) ?></span></p>
+        <p>Placed on <?= e(nice_date($order['created_at'], true)) ?> &middot; Status: <span id="liveOrderStatusBadge" class="badge text-bg-<?= e(order_status_badge($currentStatus)) ?>"><?= e(order_status_label($currentStatus)) ?></span></p>
     </div>
     <div class="d-flex gap-2">
+        <button id="liveOrderRefreshBtn" class="btn btn-outline-primary btn-sm" type="button" title="Check for live status updates">
+            <i class="bi bi-arrow-clockwise me-1"></i>Check Status
+        </button>
         <?php if (is_staff_or_admin()): ?>
             <a href="<?= e(url('orders')) ?>" class="btn btn-outline-secondary btn-sm">
                 <i class="bi bi-arrow-left me-1"></i>Back to Orders Queue
@@ -150,11 +153,12 @@ $rxVerified = $order['prescription_status'] === 'VERIFIED';
 
         <!-- Audit Trail / Order Status History Timeline -->
         <div class="card shadow-sm mb-4">
-            <div class="card-header bg-white py-3">
-                <strong>Order Lifecycle Audit Trail (<?= count($history) ?> events)</strong>
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <strong>Order Lifecycle Audit Trail (<span id="liveTimelineEventCount"><?= count($history) ?></span> events)</strong>
+                <span id="liveTimelineSyncBadge" class="badge text-bg-light border text-muted small"><i class="bi bi-clock me-1"></i>Realtime Tracker Active</span>
             </div>
             <div class="card-body">
-                <div class="timeline">
+                <div id="liveTimelineContainer" class="timeline">
                     <?php foreach ($history as $h): ?>
                         <div class="d-flex mb-3 pb-3 border-bottom last-border-0">
                             <div class="me-3">

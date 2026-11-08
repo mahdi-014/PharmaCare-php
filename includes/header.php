@@ -73,6 +73,7 @@ if (!user()) {
 <!doctype html><html lang="en"><head>
 <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="description" content="PharmaCare Pharmacy Management System">
+<meta name="csrf-token" content="<?= e(csrf()) ?>">
 <title><?=e($heading)?> | PharmaCare</title>
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
@@ -115,11 +116,9 @@ if (!user()) {
      <a href="<?= e(url('cart')) ?>" class="btn btn-outline-success position-relative me-2" title="Shopping Cart">
       <i class="bi bi-cart3"></i>
       <span class="d-none d-md-inline ms-1">Cart</span>
-      <?php if ($cartCount > 0): ?>
-       <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger" style="font-size: 11px;">
-        <?= $cartCount ?>
-       </span>
-      <?php endif; ?>
+      <span id="topbarCartBadge" class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-danger <?= $cartCount > 0 ? '' : 'd-none' ?>" style="font-size: 11px;">
+       <?= $cartCount ?>
+      </span>
      </a>
     <?php endif; ?>
     <div class="topbar-user"><span class="avatar"><i class="bi bi-person-fill"></i></span><span><strong><?=e(user()['full_name'])?></strong><small><?=e(user()['role'])?> account</small></span></div>
