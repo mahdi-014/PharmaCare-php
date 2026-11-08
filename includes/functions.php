@@ -59,31 +59,7 @@ function api_get_json_input(): array {
     }
     return $_POST;
 }
-function user(): ?array { return $_SESSION['user'] ?? null; }
-function is_admin(): bool { return (user()['role'] ?? '') === 'ADMIN'; }
-function is_staff(): bool { return (user()['role'] ?? '') === 'STAFF'; }
-function is_customer(): bool { return (user()['role'] ?? '') === 'CUSTOMER'; }
-function is_staff_or_admin(): bool { return in_array(user()['role'] ?? '', ['STAFF', 'ADMIN'], true); }
-
-function require_login(): void {
-    static $verified = false;
-    if (!user()) redirect('login');
-    if ($verified) return;
-    $row = fetch_one('SELECT id,full_name,username,role,enabled FROM app_users WHERE id=?', [user()['id']]);
-    if (!$row || !(int)$row['enabled']) {
-        unset($_SESSION['user']);
-        flash('error', 'This account is no longer active. Please contact an administrator.');
-        redirect('login');
-    }
-    $_SESSION['user'] = [
-        'id' => (int)$row['id'], 'full_name' => $row['full_name'],
-        'username' => $row['username'], 'role' => $row['role'],
-    ];
-    $verified = true;
-}
-function require_admin(): void { require_login(); if (!is_admin()) { http_response_code(403); include __DIR__ . '/../pages/forbidden.php'; exit; } }
-function require_staff_or_admin(): void { require_login(); if (!is_staff_or_admin()) { http_response_code(403); include __DIR__ . '/../pages/forbidden.php'; exit; } }
-function require_customer(): void { require_login(); if (!is_customer()) { http_response_code(403); include __DIR__ . '/../pages/forbidden.php'; exit; } }
+// Procedural Helpers & Sanitization (Q5)
 function flash(string $type, string $text): void { $_SESSION['_flash'][] = ['type' => $type, 'text' => $text]; }
 function show_flashes(): void {
     foreach ($_SESSION['_flash'] ?? [] as $f) {

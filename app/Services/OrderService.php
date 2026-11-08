@@ -91,6 +91,8 @@ class OrderService
 
                 $lineItems[] = [
                     'medicine_id' => (int)$medId,
+                    'medicine_name' => (string)$deducted['name'],
+                    'batch_number' => (string)$deducted['batch_number'],
                     'quantity' => $qty,
                     'unit_price' => $unitPrice,
                     'line_total' => $lineTotal

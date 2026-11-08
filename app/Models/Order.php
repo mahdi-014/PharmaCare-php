@@ -184,13 +184,15 @@ class Order
     public static function addItems(PDO $pdo, int $orderId, array $items): void
     {
         $stmt = $pdo->prepare(
-            'INSERT INTO order_items (order_id, medicine_id, quantity, unit_price, line_total) 
-             VALUES (?, ?, ?, ?, ?)'
+            'INSERT INTO order_items (order_id, medicine_id, medicine_name, batch_number, quantity, unit_price, line_total) 
+             VALUES (?, ?, ?, ?, ?, ?, ?)'
         );
         foreach ($items as $item) {
             $stmt->execute([
                 $orderId,
                 (int)$item['medicine_id'],
+                (string)($item['medicine_name'] ?? 'Medicine'),
+                (string)($item['batch_number'] ?? 'BATCH-001'),
                 (int)$item['quantity'],
                 number_format((float)$item['unit_price'], 2, '.', ''),
                 number_format((float)$item['line_total'], 2, '.', '')
