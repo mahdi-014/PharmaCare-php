@@ -31,7 +31,7 @@ if ($page === 'register') {
 // Allow guests to browse the medicine catalog without logging in
 if ($page === 'catalog' && !user()) {
     require __DIR__ . '/includes/header.php';
-    include __DIR__ . '/pages/catalog.php';
+    (new \App\Controllers\CatalogController())->index();
     require __DIR__ . '/includes/footer.php';
     exit;
 }
@@ -41,7 +41,7 @@ require_login();
 
 // Secure file streaming endpoint bypasses standard HTML layout wrapper
 if ($page === 'download_prescription') {
-    include __DIR__ . '/pages/download_prescription.php';
+    (new \App\Controllers\OrderController())->downloadPrescription();
     exit;
 }
 
@@ -60,5 +60,14 @@ if (in_array($page, $adminOnlyPages, true)) {
 
 // Render allowlisted page wrapped in standard layout
 require __DIR__ . '/includes/header.php';
-include __DIR__ . '/pages/' . $page . '.php';
+match ($page) {
+    'catalog' => (new \App\Controllers\CatalogController())->index(),
+    'cart' => (new \App\Controllers\CartController())->index(),
+    'checkout' => (new \App\Controllers\OrderController())->checkout(),
+    'order_confirmation' => (new \App\Controllers\OrderController())->confirmation(),
+    'orders' => (new \App\Controllers\OrderController())->index(),
+    'order_detail' => (new \App\Controllers\OrderController())->show(),
+    'my_orders' => (new \App\Controllers\OrderController())->myOrders(),
+    default => include __DIR__ . '/pages/' . $page . '.php'
+};
 require __DIR__ . '/includes/footer.php';

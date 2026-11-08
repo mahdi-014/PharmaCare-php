@@ -42,6 +42,24 @@ header('X-Content-Type-Options: nosniff');
 header('X-Frame-Options: SAMEORIGIN');
 header('Referrer-Policy: strict-origin-when-cross-origin');
 
+// Register PSR-4 Autoloader for App\ namespace
+spl_autoload_register(function (string $class): void {
+    $prefix = 'App\\';
+    $baseDir = dirname(__DIR__) . '/app/';
+
+    $len = strlen($prefix);
+    if (strncmp($prefix, $class, $len) !== 0) {
+        return;
+    }
+
+    $relativeClass = substr($class, $len);
+    $file = $baseDir . str_replace('\\', '/', $relativeClass) . '.php';
+
+    if (file_exists($file)) {
+        require_once $file;
+    }
+});
+
 require_once __DIR__ . '/functions.php';
 require_once __DIR__ . '/inventory_service.php';
 

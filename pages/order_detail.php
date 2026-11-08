@@ -15,7 +15,7 @@ declare(strict_types=1);
 require_login();
 
 $orderId = positive_int($_GET['id'] ?? 0, 'Order ID');
-$order = fetch_one('SELECT * FROM orders WHERE id = ?', [$orderId]);
+$order = \App\Models\Order::findById($orderId);
 
 if (!$order) {
     echo '<div class="alert alert-danger shadow-sm">Order not found.</div>';
@@ -30,34 +30,13 @@ if (is_customer() && (int)$order['customer_id'] !== (int)user()['id']) {
 }
 
 // Fetch ordered items
-$items = fetch_all(
-    'SELECT oi.*, m.name AS medicine_name, m.generic_name, m.batch_number, m.medicine_type, c.name AS category_name 
-     FROM order_items oi 
-     JOIN medicines m ON m.id = oi.medicine_id 
-     LEFT JOIN categories c ON c.id = m.category_id 
-     WHERE oi.order_id = ? 
-     ORDER BY oi.id ASC',
-    [$orderId]
-);
+$items = \App\Models\Order::getItems($orderId);
 
 // Fetch prescription record if present
-$prescription = fetch_one(
-    'SELECT p.*, u.full_name AS reviewer_name 
-     FROM prescriptions p 
-     LEFT JOIN app_users u ON u.id = p.reviewed_by_id 
-     WHERE p.order_id = ? LIMIT 1',
-    [$orderId]
-);
+$prescription = \App\Models\Order::getPrescription($orderId);
 
 // Fetch audit status history
-$history = fetch_all(
-    'SELECT h.*, u.full_name AS changed_by_name, u.role AS changed_by_role 
-     FROM order_status_history h 
-     LEFT JOIN app_users u ON u.id = h.changed_by_id 
-     WHERE h.order_id = ? 
-     ORDER BY h.id ASC',
-    [$orderId]
-);
+$history = \App\Models\Order::getHistory($orderId);
 
 $currentStatus = (string)$order['order_status'];
 $allowedTransitions = get_allowed_order_transitions($currentStatus);

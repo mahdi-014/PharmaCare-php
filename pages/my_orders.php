@@ -11,14 +11,7 @@ declare(strict_types=1);
 require_customer();
 
 $customerId = (int)user()['id'];
-$orders = fetch_all(
-    'SELECT o.*, 
-            (SELECT COUNT(*) FROM order_items WHERE order_id = o.id) AS item_count 
-     FROM orders o 
-     WHERE o.customer_id = ? 
-     ORDER BY o.id DESC',
-    [$customerId]
-);
+$orders = \App\Models\Order::findByCustomerId($customerId);
 ?>
 
 <div class="page-intro mb-4">

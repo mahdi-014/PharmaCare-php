@@ -7,26 +7,10 @@
 
 declare(strict_types=1);
 
-$keyword = trim((string)($_GET['keyword'] ?? ''));
-$categoryId = (int)($_GET['category_id'] ?? 0);
-$categories = fetch_all('SELECT id, name FROM categories ORDER BY name');
-
-$params = [];
-$sql = medicine_query() . ' WHERE m.active = 1 AND m.expiry_date >= CURDATE() AND m.quantity > 0';
-
-if ($keyword !== '') {
-    $sql .= ' AND (m.name LIKE ? OR m.generic_name LIKE ? OR m.brand_name LIKE ?)';
-    $needle = '%' . $keyword . '%';
-    array_push($params, $needle, $needle, $needle);
-}
-
-if ($categoryId) {
-    $sql .= ' AND m.category_id = ?';
-    $params[] = $categoryId;
-}
-
-$sql .= ' ORDER BY m.name, m.batch_number';
-$medicines = fetch_all($sql, $params);
+$keyword = $keyword ?? trim((string)($_GET['keyword'] ?? ''));
+$categoryId = $categoryId ?? (int)($_GET['category_id'] ?? 0);
+$categories = $categories ?? \App\Models\Medicine::getAllCategories();
+$medicines = $medicines ?? \App\Models\Medicine::findActive($keyword, $categoryId);
 ?>
 
 <div class="page-intro mb-4">
