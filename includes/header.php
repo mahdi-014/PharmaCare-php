@@ -1,8 +1,17 @@
 <?php
-$active = match($page) { 'medicine_form'=>'medicines','invoice'=>'sales','sale_form'=>'sale_form',default=>$page };
+$active = match($page) {
+    'medicine_form' => 'medicines',
+    'invoice' => 'sales',
+    'sale_form' => 'sale_form',
+    'order_detail' => (is_customer() ? 'my_orders' : 'orders'),
+    default => $page
+};
 $heading = page_title($page);
 $subtitles = [
  'dashboard' => 'Current pharmacy stock and sales overview',
+ 'orders' => 'Fulfill customer orders, review prescriptions, and manage dispatch queue',
+ 'order_detail' => 'Review order items, verify doctor prescriptions, and manage status transitions',
+ 'my_orders' => 'Track your active orders and review previous medication orders',
  'medicines' => 'Search stock, prices, batch and expiry information',
  'medicine_form' => 'Enter medicine, stock, price and expiry details',
  'sale_form' => 'Select medicines and generate an invoice',
@@ -32,13 +41,21 @@ if (!user()) {
     $links = [
         ['catalog', 'capsule-pill', 'Browse Medicines', 'catalog'],
         ['cart', 'cart3', $cartLabel, 'cart'],
+        ['my_orders', 'bag-check-fill', 'My Orders', 'my_orders'],
         ['profile', 'person-circle', 'My Profile', 'profile'],
     ];
     $brandUrl = url('catalog');
     $brandSubtitle = 'Online Storefront';
 } else {
+    $pendingOrdersCount = 0;
+    try {
+        $pendingOrdersCount = (int)scalar("SELECT COUNT(*) FROM orders WHERE order_status IN ('PENDING', 'CONFIRMED', 'PROCESSING')");
+    } catch (Throwable $e) {}
+    $ordersBadge = $pendingOrdersCount > 0 ? ' (' . $pendingOrdersCount . ')' : '';
+
     $links = [
         ['dashboard','grid-1x2-fill','Dashboard','dashboard'],
+        ['orders','box-seam-fill','Orders Queue' . $ordersBadge,'orders'],
         ['medicines','capsule','Medicines','medicines'],
         ['sale_form','cart-plus-fill','New Sale','sale_form'],
         ['sales','receipt','Sales History','sales'],

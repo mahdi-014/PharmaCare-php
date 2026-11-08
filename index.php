@@ -6,7 +6,8 @@ $page = (string)($_GET['page'] ?? (user() && is_customer() ? 'catalog' : 'dashbo
 $routes = [
     'login', 'register', 'dashboard', 'medicines', 'medicine_form',
     'categories', 'suppliers', 'sales', 'sale_form', 'invoice', 'users',
-    'catalog', 'profile', 'cart', 'checkout', 'order_confirmation'
+    'catalog', 'profile', 'cart', 'checkout', 'order_confirmation',
+    'orders', 'order_detail', 'my_orders', 'download_prescription'
 ];
 
 if (!in_array($page, $routes, true)) {
@@ -38,10 +39,16 @@ if ($page === 'catalog' && !user()) {
 // Protected routes require authentication
 require_login();
 
+// Secure file streaming endpoint bypasses standard HTML layout wrapper
+if ($page === 'download_prescription') {
+    include __DIR__ . '/pages/download_prescription.php';
+    exit;
+}
+
 // Strict RBAC Enforcement
 $adminOnlyPages = ['users', 'categories', 'suppliers', 'medicine_form'];
-$staffOrAdminPages = ['dashboard', 'medicines', 'sales', 'sale_form', 'invoice'];
-$customerOnlyPages = ['cart', 'profile', 'checkout', 'order_confirmation'];
+$staffOrAdminPages = ['dashboard', 'medicines', 'sales', 'sale_form', 'invoice', 'orders'];
+$customerOnlyPages = ['cart', 'profile', 'checkout', 'order_confirmation', 'my_orders'];
 
 if (in_array($page, $adminOnlyPages, true)) {
     require_admin();

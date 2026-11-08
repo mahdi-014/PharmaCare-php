@@ -99,8 +99,81 @@ function page_title(string $page): string { return [
     'sales' => 'Sales History', 'sale_form' => 'Create New Sale', 'invoice' => 'Sales Invoice',
     'categories' => 'Medicine Categories', 'suppliers' => 'Suppliers', 'users' => 'User Management',
     'register' => 'Customer Registration', 'catalog' => 'Medicine Catalog', 'profile' => 'My Account Profile',
-    'cart' => 'Shopping Cart', 'checkout' => 'Order Checkout', 'order_confirmation' => 'Order Confirmation'
+    'cart' => 'Shopping Cart', 'checkout' => 'Order Checkout', 'order_confirmation' => 'Order Confirmation',
+    'orders' => 'Orders Queue', 'order_detail' => 'Order Details', 'my_orders' => 'My Orders'
 ][$page] ?? 'PharmaCare'; }
+
+// -------------------------------------------------------------
+// Order Lifecycle & Prescription Status Helpers
+// -------------------------------------------------------------
+
+function order_status_badge(string $status): string
+{
+    return match($status) {
+        'PENDING' => 'warning text-dark',
+        'CONFIRMED' => 'info text-dark',
+        'PROCESSING' => 'primary',
+        'READY' => 'secondary',
+        'DISPATCHED' => 'dark',
+        'COMPLETED' => 'success',
+        'CANCELLED' => 'danger',
+        default => 'secondary'
+    };
+}
+
+function order_status_label(string $status): string
+{
+    return match($status) {
+        'PENDING' => 'Pending Review',
+        'CONFIRMED' => 'Confirmed',
+        'PROCESSING' => 'Processing / Packing',
+        'READY' => 'Ready for Pickup/Dispatch',
+        'DISPATCHED' => 'Out for Delivery',
+        'COMPLETED' => 'Completed',
+        'CANCELLED' => 'Cancelled',
+        default => $status
+    };
+}
+
+function prescription_status_badge(string $status): string
+{
+    return match($status) {
+        'NOT_REQUIRED' => 'light text-muted border',
+        'PENDING_REVIEW' => 'warning text-dark',
+        'VERIFIED' => 'success',
+        'REJECTED' => 'danger',
+        default => 'secondary'
+    };
+}
+
+function prescription_status_label(string $status): string
+{
+    return match($status) {
+        'NOT_REQUIRED' => 'Not Required',
+        'PENDING_REVIEW' => 'Needs Pharmacist Review',
+        'VERIFIED' => 'Verified & Approved',
+        'REJECTED' => 'Rejected',
+        default => $status
+    };
+}
+
+/**
+ * Returns allowed next statuses from a given current status.
+ * Enforces forward progression and blocks terminal state mutations.
+ */
+function get_allowed_order_transitions(string $currentStatus): array
+{
+    return match($currentStatus) {
+        'PENDING' => ['CONFIRMED', 'CANCELLED'],
+        'CONFIRMED' => ['PROCESSING', 'CANCELLED'],
+        'PROCESSING' => ['READY', 'CANCELLED'],
+        'READY' => ['DISPATCHED', 'COMPLETED'],
+        'DISPATCHED' => ['COMPLETED'],
+        'COMPLETED' => [], // Terminal state
+        'CANCELLED' => [], // Terminal state
+        default => []
+    };
+}
 
 // -------------------------------------------------------------
 // Customer Shopping Cart Session Helpers

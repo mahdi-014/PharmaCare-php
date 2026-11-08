@@ -90,7 +90,7 @@ if ($action === 'logout') {
     redirect('login');
 }
 // Cart and Order actions authorization guard
-$customerActions = ['cart_add', 'cart_update', 'cart_remove', 'cart_clear', 'order_create'];
+$customerActions = ['cart_add', 'cart_update', 'cart_remove', 'cart_clear', 'order_create', 'order_cancel_customer'];
 if (in_array($action, $customerActions, true)) {
     if (!user()) {
         flash('error', 'Please sign in or create an account to manage your shopping cart and place orders.');
@@ -103,6 +103,13 @@ if (in_array($action, $customerActions, true)) {
 }
 
 require_login();
+
+// Staff and Admin order fulfillment actions
+$staffOrAdminActions = ['order_update_status', 'prescription_review'];
+if (in_array($action, $staffOrAdminActions, true)) {
+    require_staff_or_admin();
+}
+
 // Sensitive actions must be authorized independently of the UI.
 $adminActions = ['category_save','category_delete','supplier_save','supplier_delete','medicine_save','medicine_toggle','user_create','user_toggle'];
 if (in_array($action, $adminActions, true)) require_admin();
@@ -112,6 +119,8 @@ $fallback = match($action) {
     'sale_create'=>'sale_form','profile_update'=>'profile',
     'cart_add'=>'catalog','cart_update','cart_remove','cart_clear'=>'cart',
     'order_create'=>'checkout',
+    'order_update_status','prescription_review'=>'orders',
+    'order_cancel_customer'=>'my_orders',
     default=>'dashboard'
 };
 try {
@@ -386,6 +395,209 @@ try {
                 }
                 if ($uploadedFilePath && file_exists($uploadedFilePath)) {
                     @unlink($uploadedFilePath);
+                }
+                throw $ex;
+            }
+            break;
+
+        case 'order_update_status':
+            require_staff_or_admin();
+            $orderId = positive_int($_POST['order_id'] ?? 0, 'Order ID');
+            $newStatus = trim((string)($_POST['new_status'] ?? ''));
+            $remarks = optional_text('remarks', 1000);
+
+            $validStatuses = ['PENDING', 'CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'COMPLETED', 'CANCELLED'];
+            if (!in_array($newStatus, $validStatuses, true)) {
+                throw new DomainException('Invalid order status selected.');
+            }
+
+            $pdo = db();
+            $pdo->beginTransaction();
+            try {
+                $orderStmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? FOR UPDATE');
+                $orderStmt->execute([$orderId]);
+                $order = $orderStmt->fetch();
+
+                if (!$order) {
+                    throw new DomainException('Order not found.');
+                }
+
+                $currentStatus = (string)$order['order_status'];
+
+                if ($currentStatus === $newStatus) {
+                    throw new DomainException("Order is already in '{$newStatus}' status.");
+                }
+
+                // Enforce terminal state immutability
+                if (in_array($currentStatus, ['COMPLETED', 'CANCELLED'], true)) {
+                    throw new DomainException("Cannot modify terminal order (Current status: {$currentStatus}).");
+                }
+
+                // Enforce allowed state transitions
+                $allowed = get_allowed_order_transitions($currentStatus);
+                if (!in_array($newStatus, $allowed, true)) {
+                    throw new DomainException("Invalid status transition from {$currentStatus} to {$newStatus}.");
+                }
+
+                // Prescription Gate: Orders requiring prescription cannot advance to CONFIRMED or beyond unless VERIFIED
+                if ((int)$order['prescription_required'] === 1 && in_array($newStatus, ['CONFIRMED', 'PROCESSING', 'READY', 'DISPATCHED', 'COMPLETED'], true)) {
+                    if ($order['prescription_status'] !== 'VERIFIED') {
+                        throw new DomainException("Cannot advance order: Prescription must be approved by a pharmacist first (Current prescription status: {$order['prescription_status']}).");
+                    }
+                }
+
+                // Idempotent Stock Restoration upon Cancellation
+                if ($newStatus === 'CANCELLED') {
+                    if ((int)$order['stock_deducted'] === 1 && (int)$order['stock_restored'] === 0) {
+                        $itemsStmt = $pdo->prepare('SELECT medicine_id, quantity FROM order_items WHERE order_id = ?');
+                        $itemsStmt->execute([$orderId]);
+                        $orderItems = $itemsStmt->fetchAll();
+
+                        foreach ($orderItems as $item) {
+                            InventoryService::restoreBatchStock($pdo, (int)$item['medicine_id'], (int)$item['quantity']);
+                        }
+
+                        $pdo->prepare('UPDATE orders SET stock_restored = 1 WHERE id = ?')->execute([$orderId]);
+                    }
+                }
+
+                // Payment Status synchronization
+                if ($newStatus === 'COMPLETED') {
+                    $pdo->prepare("UPDATE orders SET payment_status = 'PAID' WHERE id = ?")->execute([$orderId]);
+                }
+
+                // Update order status
+                $pdo->prepare('UPDATE orders SET order_status = ? WHERE id = ?')->execute([$newStatus, $orderId]);
+
+                // Log audit history
+                $histRemarks = $remarks ?: "Status transitioned from {$currentStatus} to {$newStatus}";
+                $pdo->prepare(
+                    'INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by_id, remarks) VALUES (?, ?, ?, ?, ?)'
+                )->execute([$orderId, $currentStatus, $newStatus, (int)user()['id'], $histRemarks]);
+
+                $pdo->commit();
+                flash('success', "Order #{$order['order_number']} status updated to {$newStatus}.");
+                redirect('order_detail', ['id' => $orderId]);
+            } catch (Throwable $ex) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $ex;
+            }
+            break;
+
+        case 'order_cancel_customer':
+            require_customer();
+            $orderId = positive_int($_POST['order_id'] ?? 0, 'Order ID');
+            $remarks = optional_text('remarks', 1000);
+
+            $pdo = db();
+            $pdo->beginTransaction();
+            try {
+                $orderStmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? FOR UPDATE');
+                $orderStmt->execute([$orderId]);
+                $order = $orderStmt->fetch();
+
+                if (!$order) {
+                    throw new DomainException('Order not found.');
+                }
+
+                // Strict IDOR Protection
+                if ((int)$order['customer_id'] !== (int)user()['id']) {
+                    throw new DomainException('Access denied. You can only cancel your own orders.');
+                }
+
+                $currentStatus = (string)$order['order_status'];
+
+                // Customer may only self-cancel while PENDING
+                if ($currentStatus !== 'PENDING') {
+                    throw new DomainException("Order has already progressed to '{$currentStatus}' and cannot be self-cancelled. Please contact dispensary staff.");
+                }
+
+                // Idempotent Stock Restoration
+                if ((int)$order['stock_deducted'] === 1 && (int)$order['stock_restored'] === 0) {
+                    $itemsStmt = $pdo->prepare('SELECT medicine_id, quantity FROM order_items WHERE order_id = ?');
+                    $itemsStmt->execute([$orderId]);
+                    $orderItems = $itemsStmt->fetchAll();
+
+                    foreach ($orderItems as $item) {
+                        InventoryService::restoreBatchStock($pdo, (int)$item['medicine_id'], (int)$item['quantity']);
+                    }
+
+                    $pdo->prepare('UPDATE orders SET stock_restored = 1 WHERE id = ?')->execute([$orderId]);
+                }
+
+                $pdo->prepare("UPDATE orders SET order_status = 'CANCELLED' WHERE id = ?")->execute([$orderId]);
+
+                $cancelRemarks = "Order cancelled by customer. " . ($remarks ? "Reason: {$remarks}" : '');
+                $pdo->prepare(
+                    'INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by_id, remarks) VALUES (?, ?, "CANCELLED", ?, ?)'
+                )->execute([$orderId, $currentStatus, (int)user()['id'], $cancelRemarks]);
+
+                $pdo->commit();
+                flash('success', "Order #{$order['order_number']} has been cancelled.");
+                redirect('order_detail', ['id' => $orderId]);
+            } catch (Throwable $ex) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $ex;
+            }
+            break;
+
+        case 'prescription_review':
+            require_staff_or_admin();
+            $orderId = positive_int($_POST['order_id'] ?? 0, 'Order ID');
+            $status = strtoupper(trim((string)($_POST['verification_status'] ?? '')));
+            $notes = optional_text('review_notes', 1000);
+
+            if (!in_array($status, ['APPROVED', 'REJECTED'], true)) {
+                throw new DomainException('Please select a valid review decision (Approved or Rejected).');
+            }
+
+            $pdo = db();
+            $pdo->beginTransaction();
+            try {
+                $orderStmt = $pdo->prepare('SELECT * FROM orders WHERE id = ? FOR UPDATE');
+                $orderStmt->execute([$orderId]);
+                $order = $orderStmt->fetch();
+
+                if (!$order) {
+                    throw new DomainException('Order not found.');
+                }
+
+                $rxStmt = $pdo->prepare('SELECT * FROM prescriptions WHERE order_id = ? FOR UPDATE');
+                $rxStmt->execute([$orderId]);
+                $rx = $rxStmt->fetch();
+
+                if (!$rx) {
+                    throw new DomainException('No uploaded prescription found for this order.');
+                }
+
+                // Update prescription record
+                $upRx = $pdo->prepare(
+                    'UPDATE prescriptions 
+                     SET verification_status = ?, reviewed_by_id = ?, review_notes = ?, reviewed_at = NOW() 
+                     WHERE id = ?'
+                );
+                $upRx->execute([$status, (int)user()['id'], $notes, (int)$rx['id']]);
+
+                // Map to orders.prescription_status
+                $orderRxStatus = ($status === 'APPROVED' ? 'VERIFIED' : 'REJECTED');
+                $pdo->prepare('UPDATE orders SET prescription_status = ? WHERE id = ?')->execute([$orderRxStatus, $orderId]);
+
+                // Log in order_status_history
+                $historyRemarks = "Pharmacist prescription review: {$status}. " . ($notes ? "Notes: {$notes}" : '');
+                $pdo->prepare(
+                    'INSERT INTO order_status_history (order_id, previous_status, new_status, changed_by_id, remarks) VALUES (?, ?, ?, ?, ?)'
+                )->execute([$orderId, $order['order_status'], $order['order_status'], (int)user()['id'], $historyRemarks]);
+
+                $pdo->commit();
+                flash('success', "Prescription has been marked as {$status}.");
+                redirect('order_detail', ['id' => $orderId]);
+            } catch (Throwable $ex) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
                 }
                 throw $ex;
             }
