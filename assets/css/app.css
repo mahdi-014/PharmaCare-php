@@ -98,6 +98,8 @@ a { text-decoration: none; }
 .icon-warning { color: #d97706; background: #fef3c7; }
 .icon-danger { color: #e11d48; background: #ffe4e6; }
 .icon-info { color: #0284c7; background: #e0f2fe; }
+.icon-success { color: #16a34a; background: #dcfce7; }
+.icon-dark { color: #334155; background: #f1f5f9; }
 
 /* Buttons & Inputs */
 .btn { font-weight: 600; padding: 0.6rem 1.2rem; border-radius: 10px; transition: var(--transition); }

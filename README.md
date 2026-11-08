@@ -3,7 +3,7 @@
 [![PHP 8.3](https://img.shields.io/badge/PHP-8.3%2B-777BB4?style=flat&logo=php&logoColor=white)](https://www.php.net/)
 [![MariaDB 10.11](https://img.shields.io/badge/MariaDB-10.11%2B-003545?style=flat&logo=mariadb&logoColor=white)](https://mariadb.org/)
 [![Bootstrap 5.3](https://img.shields.io/badge/Bootstrap-5.3.3-7952B3?style=flat&logo=bootstrap&logoColor=white)](https://getbootstrap.com/)
-[![Tests Passing](https://img.shields.io/badge/Tests-334%20Passing-brightgreen?style=flat)](#automated-testing--verification-suites)
+[![Tests Passing](https://img.shields.io/badge/Tests-382%20Passing-brightgreen?style=flat)](#automated-testing--verification-suites)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
 
 **Academic Course Project:** CIS324 Web Engineering Semester Project (Topic 13: Pharmacy Management System)  
@@ -139,7 +139,8 @@ PharmaCare-PHP/
 │   │   └── Prescription.php           # Prescription file metadata & review audit
 │   └── Services/              # Domain Business Logic & Concurrency Control
 │       ├── InventoryService.php       # Row-level locking (FOR UPDATE), FEFO allocation
-│       └── OrderService.php           # Simplified lifecycle state machine & sales ledger bridge
+│       ├── OrderService.php           # Simplified lifecycle state machine & sales ledger bridge
+│       └── DashboardService.php       # Real-time multi-channel analytics & query aggregator
 │
 ├── assets/                    # Static Client-Side Assets
 │   ├── css/
@@ -190,16 +191,17 @@ PharmaCare-PHP/
 ├── uploads/prescriptions/     # Protected prescription document storage
 │   └── .htaccess              # Require all denied (blocks unauthorized HTTP downloads)
 │
-└── tests/                     # 9 Comprehensive Automated Test Suites (334 Assertions)
+└── tests/                     # 10 Comprehensive Automated Test Suites (382 Assertions)
     ├── smoke.php              # Unit tests for status engine, validators & URL routing
     ├── database_test.php      # Live database connectivity, foreign keys & seed data
     ├── auth_test.php          # Customer registration, Bcrypt, role routing & RBAC
     ├── cart_test.php          # Session cart calculations, max-stock clamping & Rx flags
     ├── order_test.php         # Atomic checkout, FEFO allocation & row locking
-    ├── order_lifecycle_test.php # 7-state order lifecycle, Rx gates & cancellations
+    ├── order_lifecycle_test.php # Streamlined lifecycle, sales bridge sync & zero double-deduction
     ├── api_test.php           # RESTful JSON APIs, debounced search & CSRF headers
     ├── mvc_test.php           # Layered MVC classes, PSR-4 autoloader & models
-    └── security_test.php      # SQLi, XSS, CSRF, IDOR, session timeout & path traversal
+    ├── security_test.php      # SQLi, XSS, CSRF, IDOR, session timeout & path traversal
+    └── dashboard_test.php     # Real-time analytics, channel sales split, inventory & RBAC
 ```
 
 ---
@@ -308,7 +310,7 @@ PharmaCare implements comprehensive **Defense-in-Depth** across all 7 OSI / appl
 
 ## Automated Testing & Verification Suites
 
-PharmaCare features a comprehensive test harness comprising **9 standalone automated test suites** verifying 334 assertions across unit logic, database integrity, RBAC firewalls, concurrency, and security threats.
+PharmaCare features a comprehensive test harness comprising **10 standalone automated test suites** verifying 382 assertions across unit logic, database integrity, RBAC firewalls, concurrency, security threats, and unified dashboard analytics.
 
 ### Running All Test Suites
 Execute the following commands from the repository root:
@@ -323,9 +325,10 @@ php tests/order_lifecycle_test.php
 php tests/api_test.php
 php tests/mvc_test.php
 php tests/security_test.php
+php tests/dashboard_test.php
 ```
 
-*(Alternatively, run `tests\run_tests.bat` on Windows to execute all 9 suites sequentially).*
+*(Alternatively, run `tests\run_tests.bat` on Windows to execute all 10 suites sequentially).*
 
 ### Test Suite Summary
 
@@ -340,7 +343,8 @@ php tests/security_test.php
 | 7 | `tests/api_test.php` | 53 | RESTful JSON APIs (`api/*`), HTTP status codes (200, 400, 401, 403, 404, 405), debounced search, session cart endpoints, CSRF headers. | **53/53 PASSED** |
 | 8 | `tests/mvc_test.php` | 53 | PSR-4 autoloader, Layered MVC Controllers, Active Record Models, Domain Services, method signatures and separation of concerns. | **53/53 PASSED** |
 | 9 | `tests/security_test.php` | 51 | SQLi payloads, XSS neutralization via `e()`, HTTP security headers, CSRF form & header tokens, RBAC privilege escalation, 30m idle session timeout, file upload allowlists & directory traversal. | **51/51 PASSED** |
-| **TOTAL** | **9 Suites** | **334** | **Complete Application Verification** | **334/334 PASSED (100%)** |
+| 10 | `tests/dashboard_test.php` | 48 | Dashboard query aggregator, today & all-time revenue, channel split math (POS vs Online), inventory & stock health, operations queue, and customer 403 RBAC. | **48/48 PASSED** |
+| **TOTAL** | **10 Suites** | **382** | **Complete Application Verification** | **382/382 PASSED (100%)** |
 
 ---
 

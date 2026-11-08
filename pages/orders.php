@@ -12,7 +12,7 @@ require_staff_or_admin();
 // Filter parameters
 $statusFilter = trim((string)($_GET['status'] ?? ''));
 $paymentFilter = trim((string)($_GET['payment'] ?? ''));
-$rxFilter = trim((string)($_GET['prescription'] ?? ''));
+$rxFilter = trim((string)($_GET['prescription'] ?? $_GET['filter_rx'] ?? ''));
 $searchKeyword = trim((string)($_GET['search'] ?? ''));
 
 // Summary counts

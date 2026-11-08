@@ -8,7 +8,7 @@ declare(strict_types=1);
 
 $keyword = trim((string)($_GET['keyword'] ?? ''));
 $categoryId = (int)($_GET['category_id'] ?? 0);
-$selectedStatus = (string)($_GET['status'] ?? '');
+$selectedStatus = strtoupper(trim((string)($_GET['status'] ?? '')));
 $categories = fetch_all('SELECT id, name FROM categories ORDER BY name');
 
 $params = [];

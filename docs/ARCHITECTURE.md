@@ -41,7 +41,7 @@ flowchart TD
 
         subgraph MVC ["Layered MVC Core (app/)"]
             Controllers["Controllers\n(Catalog, Cart, Checkout, Order, CustomerAuth)"]
-            Services["Domain Services\n(OrderService, InventoryService)"]
+            Services["Domain Services\n(OrderService, InventoryService, DashboardService)"]
             Models["Data Models\n(Medicine, Order, User, Prescription)"]
         end
 
@@ -359,7 +359,8 @@ PharmaCare-PHP/
 │   │   └── Prescription.php       # Prescription metadata & verification updates
 │   └── Services/                  # Domain Business Logic & Concurrency Control
 │       ├── InventoryService.php   # Pessimistic locking, stock deduction & FEFO
-│       └── OrderService.php       # Order lifecycle state machine & transitions
+│       ├── OrderService.php       # Order lifecycle state machine & transitions
+│       └── DashboardService.php   # Real-time multi-channel analytics & query aggregator
 │
 ├── api/                           # Asynchronous RESTful JSON Endpoints
 │   ├── cart/                      # add.php, update.php, remove.php, view.php
@@ -396,7 +397,7 @@ PharmaCare-PHP/
 ├── uploads/prescriptions/         # Encrypted/Protected prescription documents
 │   └── .htaccess                  # Require all denied (blocks direct HTTP downloads)
 │
-└── tests/                         # 9 Comprehensive Automated Test Suites
+└── tests/                         # 10 Comprehensive Automated Test Suites
     ├── smoke.php                  # Unit tests for status engine & validators
     ├── database_test.php          # Database schema & foreign key verification
     ├── auth_test.php              # Customer registration, Bcrypt & RBAC
@@ -405,7 +406,8 @@ PharmaCare-PHP/
     ├── order_lifecycle_test.php   # State machine & prescription gating
     ├── api_test.php               # RESTful JSON APIs & CSRF headers
     ├── mvc_test.php               # Layered MVC classes & PSR-4 autoloader
-    └── security_test.php          # SQLi, XSS, CSRF, IDOR, and session timeout
+    ├── security_test.php          # SQLi, XSS, CSRF, IDOR, and session timeout
+    └── dashboard_test.php         # Analytics aggregator, channel split & RBAC
 ```
 
 ### PSR-4 Autoloading Implementation
@@ -466,7 +468,7 @@ PharmaCare implements **Defense-in-Depth** across every tier of the application:
 
 ## 6. Verification & Automated Test Coverage
 
-The system is continuously verified through **9 automated test suites** executing 334 assertions against the live application runtime:
+The system is continuously verified through **10 automated test suites** executing 382 assertions against the live application runtime:
 
 ```text
 Suite 1: tests/smoke.php (16 tests)           --> Inventory status engine, price validators & DDL schema.
@@ -478,6 +480,7 @@ Suite 6: tests/order_lifecycle_test.php (43)  --> State machine transitions, fas
 Suite 7: tests/api_test.php (53 tests)        --> JSON REST APIs, debounced search, CSRF headers & HTTP codes.
 Suite 8: tests/mvc_test.php (53 tests)        --> PSR-4 autoloader, Controllers, Models, and Domain Services.
 Suite 9: tests/security_test.php (51 tests)   --> SQLi, XSS, CSRF, IDOR, session timeout & path traversal.
+Suite 10: tests/dashboard_test.php (48 tests) --> Analytics aggregator, channel sales split, stock health & RBAC.
 -------------------------------------------------------------------------------------------------------------
-TOTAL: 334 / 334 Assertions Passing (100% Pass Rate)
+TOTAL: 382 / 382 Assertions Passing (100% Pass Rate)
 ```

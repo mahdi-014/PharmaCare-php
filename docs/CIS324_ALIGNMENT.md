@@ -3,7 +3,7 @@
 **Course:** CIS324 Web Engineering  
 **Project Topic 13:** Pharmacy Management System & Online Medicine Ordering  
 **Implementation Stack:** Core PHP 8.3, MariaDB 10.11 / MySQL InnoDB, PDO, Bootstrap 5.3.3, Vanilla JavaScript (Fetch API)  
-**Verification Status:** 9 Test Suites / 334 Assertions Passing (100% Pass Rate)  
+**Verification Status:** 10 Test Suites / 382 Assertions Passing (100% Pass Rate)  
 
 ---
 
@@ -364,6 +364,7 @@ As web applications expand, monolithic procedural code becomes difficult to main
    - **Domain Services ([`app/Services/`](file:///d:/PharmaCare-PHP-Complete/PharmaCare-PHP/app/Services/)):** Reusable business logic independent of HTTP controllers:
      - `InventoryService`: Row-level locking, atomic stock deduction, FEFO batch selection, and cancellation stock restoration.
      - `OrderService`: Streamlined order lifecycle engine, transition validation, single-click fast-track completion, sales channel ledger synchronization, and prescription audit gating.
+     - `DashboardService`: Unified query aggregator for POS and online sales channel breakdown, inventory stock health, and operations queue KPIs.
    - **Views ([`pages/`](file:///d:/PharmaCare-PHP-Complete/PharmaCare-PHP/pages/)):** Presentation templates rendering semantic HTML with escaped variables.
 
 2. **PSR-4 Autoloading Without Third-Party Package Managers:**
@@ -391,7 +392,7 @@ Software engineering requires critical evaluation of system performance, operati
 ### Implementation Evidence in PharmaCare
 
 1. **System Evaluation & Empirical Verification:**
-   - **Correctness & Reliability:** Verified via 9 automated test suites running 334 assertions across unit, integration, database integrity, and security domains with 100% pass rates.
+   - **Correctness & Reliability:** Verified via 10 automated test suites running 382 assertions across unit, integration, database integrity, unified analytics, and security domains with 100% pass rates.
    - **Concurrency Safety:** Evaluated through simulated race conditions in `tests/order_test.php`, confirming that pessimistic row locks (`SELECT ... FOR UPDATE`) prevent inventory overselling even under simultaneous checkouts.
    - **Lightweight Footprint:** Zero external framework overhead ensures sub-20ms page rendering times on standard hardware, with zero background Node.js or Java daemon memory overhead.
 
@@ -406,4 +407,4 @@ Software engineering requires critical evaluation of system performance, operati
    - **Automated Prescription OCR:** Integrate computer vision APIs to perform optical character recognition on uploaded prescription images, pre-validating doctor signatures and prescribed medications.
 
 ### Viva Defense Talking Points
-> *"PharmaCare has been verified with 334 automated tests, proving both functional correctness and concurrency safety. To scale this system to millions of users, we would transition session storage from the local filesystem to a Redis cluster, implement database read-replicas for catalog browsing, and introduce asynchronous message queues for SMS order notifications. The layered architecture we established in Phase 7 provides the exact modular boundaries required to transition into microservices when business growth demands it."*
+> *"PharmaCare has been verified with 382 automated tests, proving both functional correctness and concurrency safety. To scale this system to millions of users, we would transition session storage from the local filesystem to a Redis cluster, implement database read-replicas for catalog browsing, and introduce asynchronous message queues for SMS order notifications. The layered architecture we established in Phase 7 provides the exact modular boundaries required to transition into microservices when business growth demands it."*
