@@ -14,8 +14,8 @@ function csrf(): string { if (empty($_SESSION['_csrf'])) $_SESSION['_csrf'] = bi
 function csrf_field(): string { return '<input type="hidden" name="_csrf" value="' . e(csrf()) . '">'; }
 function csrf_verify(): void {
     if (!isset($_POST['_csrf']) || !hash_equals(csrf(), (string)$_POST['_csrf'])) {
-        http_response_code(419);
-        exit('Invalid session token. Go back, refresh the form and try again.');
+        http_response_code(403);
+        exit('Invalid CSRF session token. Go back, refresh the form and try again.');
     }
 }
 

@@ -20,10 +20,11 @@ if (session_status() === PHP_SESSION_NONE) {
 }
 
 // Enforce 30-minute idle session timeout (Q7 Session Security)
+const SESSION_IDLE_TIMEOUT = 1800; // 30 minutes in seconds
+
 if (!empty($_SESSION['user'])) {
     $now = time();
-    $maxIdleSeconds = 1800; // 30 minutes
-    if (isset($_SESSION['last_activity']) && ($now - (int)$_SESSION['last_activity'] > $maxIdleSeconds)) {
+    if (isset($_SESSION['last_activity']) && ($now - (int)$_SESSION['last_activity'] > SESSION_IDLE_TIMEOUT)) {
         $_SESSION = [];
         if (ini_get('session.use_cookies')) {
             $params = session_get_cookie_params();
@@ -32,7 +33,7 @@ if (!empty($_SESSION['user'])) {
         session_destroy();
         session_start();
         $_SESSION['_flash'][] = ['type' => 'error', 'text' => 'Session expired due to 30 minutes of inactivity. Please sign in again.'];
-        header('Location: index.php?page=login');
+        header('Location: index.php?page=login&timeout=1');
         exit;
     }
     $_SESSION['last_activity'] = $now;

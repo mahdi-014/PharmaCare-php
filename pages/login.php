@@ -37,6 +37,13 @@
                     <p class="text-secondary">Use your authorized account to continue.</p>
                 </div>
 
+                <?php if (isset($_GET['timeout']) && $_GET['timeout'] === '1'): ?>
+                    <div class="alert alert-warning d-flex align-items-center mb-3" role="alert">
+                        <i class="bi bi-clock-history me-2 fs-5"></i>
+                        <div>Your session has expired due to 30 minutes of inactivity. Please sign in again.</div>
+                    </div>
+                <?php endif; ?>
+
                 <?php show_flashes(); ?>
 
                 <form action="actions.php" method="post">
